@@ -1,6 +1,10 @@
-# 课程题库桌面自测应用
+# The-Great-Final-Review
 
-本项目是一个基于原生 HTML、CSS、JavaScript 和 Electron 的本地课程题库自测应用。当前已内置“微机原理”题库，其他科目预留了入口。
+由于往年试卷资料太少，于是用 ChatGPT 生成题库，用于期末复习。
+
+本应用由 Codex vibe coding 而成。项目一开始是网页端，后来改成 Electron 桌面端，所以主体使用原生 HTML、CSS、JavaScript 编写。
+
+当前已内置“微机原理”题库，其他科目预留了入口。
 
 ## 运行桌面应用
 
@@ -15,6 +19,8 @@ npm install
 ```bash
 npm start
 ```
+
+也可以双击项目根目录下的 `start-desktop-question-bank.cmd` 或 `启动桌面题库-无终端.vbs` 启动。
 
 ## 当前题库数据
 
@@ -47,3 +53,5 @@ npm start
   "知识点来源": "..."
 }
 ```
+
+伟大的本科生期末大复习万岁！
