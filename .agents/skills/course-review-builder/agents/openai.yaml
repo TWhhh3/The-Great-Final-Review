@@ -1,0 +1,4 @@
+interface:
+  display_name: "Course Review Builder"
+  short_description: "Build course review packs from materials."
+  default_prompt: "Use this skill to process materials/ and generate extracted text, review outputs, a printable PDF, a question-bank JSON file, and a local self-test web app."

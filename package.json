@@ -1,0 +1,13 @@
+{
+  "name": "course-question-bank-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "课程题库桌面自测应用",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

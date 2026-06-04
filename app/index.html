@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>课程题库桌面自测</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1 id="appTitle">课程题库主菜单</h1>
+      <p id="loadStatus">正在加载题库...</p>
+    </div>
+    <div class="scoreboard" aria-label="答题统计">
+      <div><span id="scoreText">0.0</span><small>得分</small></div>
+      <div><span id="answeredText">0</span><small>已答</small></div>
+      <div><span id="accuracyText">0%</span><small>正确率</small></div>
+      <div><span id="wrongCountText">0</span><small>错题</small></div>
+    </div>
+  </header>
+
+  <main id="menuView" class="menu-view">
+    <section class="menu-intro">
+      <h2>课程题库主菜单</h2>
+      <p>选择一门课程开始练习。未添加题库的课程会显示占位页面，后续放入 JSON 文件后即可启用。</p>
+    </section>
+    <section id="subjectGrid" class="subject-grid" aria-label="科目列表"></section>
+  </main>
+
+  <main id="placeholderView" class="placeholder-view hidden">
+    <section class="panel placeholder-panel">
+      <button id="placeholderBackBtn" class="back-btn" type="button">返回主菜单</button>
+      <p id="placeholderSubject" class="placeholder-subject">-</p>
+      <h2>尚未添加题库</h2>
+      <p>该科目的题库文件尚未建立，后续可添加。</p>
+    </section>
+  </main>
+
+  <main id="questionView" class="layout hidden">
+    <aside class="side">
+      <section class="panel subject-panel">
+        <button id="backToMenuBtn" class="back-btn" type="button">返回主菜单</button>
+        <p>当前科目</p>
+        <strong id="currentSubjectText">-</strong>
+      </section>
+
+      <section class="panel controls" aria-label="筛选区">
+        <h2>筛选练习</h2>
+        <div class="field">
+          <label for="chapterFilter">章节</label>
+          <select id="chapterFilter"></select>
+        </div>
+        <div class="field">
+          <label for="typeFilter">题型</label>
+          <select id="typeFilter"></select>
+        </div>
+        <div class="field">
+          <label for="difficultyFilter">难度</label>
+          <select id="difficultyFilter"></select>
+        </div>
+        <div class="button-row">
+          <button id="applyFilterBtn" type="button">应用筛选</button>
+          <button id="randomBtn" type="button">随机出题</button>
+        </div>
+        <div class="button-row">
+          <button id="prevBtn" type="button">上一题</button>
+          <button id="nextBtn" type="button">下一题</button>
+        </div>
+        <div class="mini-stats">
+          <span id="modeText">当前模式：普通练习</span>
+          <span id="poolText">当前题池：0</span>
+          <span id="positionText">第 0 / 0 题</span>
+        </div>
+      </section>
+
+      <section class="panel exam-panel" aria-label="模拟考试">
+        <h2>模拟考试</h2>
+        <div class="exam-grid">
+          <span>选择题 15</span>
+          <span>填空题 10</span>
+          <span>程序阅读 2</span>
+          <span>简答题 2</span>
+          <span>系统扩展 1</span>
+          <span>程序设计 4</span>
+        </div>
+        <label class="check-line">
+          <input id="timerToggle" type="checkbox">
+          开启两小时计时
+        </label>
+        <div class="timer-line">
+          <span>剩余时间</span>
+          <strong id="timerText">未开启</strong>
+        </div>
+        <div class="button-row">
+          <button id="startExamBtn" type="button">生成模拟试卷</button>
+          <button id="exitExamBtn" type="button">退出考试</button>
+        </div>
+      </section>
+
+      <section class="panel wrong-panel" aria-label="错题本">
+        <div class="section-head">
+          <h2>错题本</h2>
+          <button id="clearWrongBtn" type="button">清空</button>
+        </div>
+        <div id="wrongList" class="wrong-list">暂无错题</div>
+      </section>
+    </aside>
+
+    <section class="panel question-panel" aria-label="题目区">
+      <div class="question-meta">
+        <span id="qidText">-</span>
+        <span id="chapterText">-</span>
+        <span id="typeText">-</span>
+        <span id="difficultyText">-</span>
+      </div>
+      <div id="questionStem" class="question-stem">暂无题目</div>
+      <div id="optionsBox" class="options"></div>
+      <div id="answerBox" class="answer-box"></div>
+      <div class="button-row submit-row">
+        <button id="submitBtn" type="button">提交答案</button>
+        <button id="showAnswerBtn" type="button">查看参考答案</button>
+        <button id="addWrongBtn" type="button">加入错题本</button>
+      </div>
+    </section>
+
+    <section id="resultPanel" class="panel result-panel hidden" aria-live="polite">
+      <div class="result-head">
+        <h2 id="resultTitle">结果</h2>
+        <span id="questionScore">0.0 分</span>
+      </div>
+      <div id="resultText" class="result-text"></div>
+      <div class="answer-grid">
+        <div>
+          <h3>参考答案</h3>
+          <pre id="referenceAnswer"></pre>
+        </div>
+        <div>
+          <h3>解析</h3>
+          <pre id="explanationText"></pre>
+        </div>
+        <div class="source-box">
+          <h3>知识点来源</h3>
+          <pre id="sourceText"></pre>
+        </div>
+      </div>
+      <div id="selfReviewTip" class="tip"></div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+node_modules/
+.playwright-cli/
+tmp/
+
+.env
+.env.*
+
+*.log
+*.tmp
+*.bak
+
+__pycache__/
+*.py[cod]
+
+.DS_Store
+Thumbs.db

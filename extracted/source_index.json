@@ -1,0 +1,130 @@
+[
+  {
+    "source": "materials/上课PPT/第1章 单片机应用基础概述-修改.pdf",
+    "output": "extracted/上课PPT/第1章 单片机应用基础概述-修改.txt",
+    "status": "extracted",
+    "chars": 11821
+  },
+  {
+    "source": "materials/上课PPT/第2章  MCS-51的结构-修改.pdf",
+    "output": "extracted/上课PPT/第2章  MCS-51的结构-修改.txt",
+    "status": "extracted",
+    "chars": 8811
+  },
+  {
+    "source": "materials/上课PPT/第3章 MCS-51指令系统及编程举例.pdf",
+    "output": "extracted/上课PPT/第3章 MCS-51指令系统及编程举例.txt",
+    "status": "extracted",
+    "chars": 40022
+  },
+  {
+    "source": "materials/上课PPT/第4章C51程序设计及应用.pdf",
+    "output": "extracted/上课PPT/第4章C51程序设计及应用.txt",
+    "status": "extracted",
+    "chars": 33285
+  },
+  {
+    "source": "materials/上课PPT/第5章 中断系统.pdf",
+    "output": "extracted/上课PPT/第5章 中断系统.txt",
+    "status": "extracted",
+    "chars": 9824
+  },
+  {
+    "source": "materials/上课PPT/第6章 定时器，计数器.pdf",
+    "output": "extracted/上课PPT/第6章 定时器，计数器.txt",
+    "status": "extracted",
+    "chars": 11419
+  },
+  {
+    "source": "materials/上课PPT/第7章单片机串行口及应用.pdf",
+    "output": "extracted/上课PPT/第7章单片机串行口及应用.txt",
+    "status": "extracted",
+    "chars": 11911
+  },
+  {
+    "source": "materials/上课PPT/第8章 单片机系统的接口.pdf",
+    "output": "extracted/上课PPT/第8章 单片机系统的接口.txt",
+    "status": "extracted",
+    "chars": 21597
+  },
+  {
+    "source": "materials/上课PPT/第9章 单片机的系统扩展.pdf",
+    "output": "extracted/上课PPT/第9章 单片机的系统扩展.txt",
+    "status": "extracted",
+    "chars": 22715
+  },
+  {
+    "source": "materials/微机原理往年试卷/2015_车辆专业微机控制技术试卷A-A.docx",
+    "output": "extracted/微机原理往年试卷/2015_车辆专业微机控制技术试卷A-A.txt",
+    "status": "extracted",
+    "chars": 3896
+  },
+  {
+    "source": "materials/微机原理往年试卷/2015_车辆专业微机控制技术试卷A-A答案.docx",
+    "output": "extracted/微机原理往年试卷/2015_车辆专业微机控制技术试卷A-A答案.txt",
+    "status": "extracted",
+    "chars": 4443
+  },
+  {
+    "source": "materials/微机原理往年试卷/《单片机》期末考试复习题及答案.pdf",
+    "output": "extracted/微机原理往年试卷/《单片机》期末考试复习题及答案.txt",
+    "status": "extracted",
+    "chars": 23793
+  },
+  {
+    "source": "materials/微机原理往年试卷/单片机原理选择题.docx",
+    "output": "extracted/微机原理往年试卷/单片机原理选择题.txt",
+    "status": "extracted",
+    "chars": 7538
+  },
+  {
+    "source": "materials/微机原理往年试卷/单片机期末考试试题(含答案).pdf",
+    "output": "extracted/微机原理往年试卷/单片机期末考试试题(含答案).txt",
+    "status": "ocr_extracted",
+    "chars": 7008,
+    "message": "Windows OCR re-extracted scanned PDF text; verify key answers manually."
+  },
+  {
+    "source": "materials/微机原理往年试卷/单片机期末考试试题带答案.pdf",
+    "output": "extracted/微机原理往年试卷/单片机期末考试试题带答案.txt",
+    "status": "ocr_extracted",
+    "chars": 3741,
+    "message": "Windows OCR re-extracted scanned PDF text; verify key answers manually."
+  },
+  {
+    "source": "materials/微机原理往年试卷/单片机试卷A(A).docx",
+    "output": "extracted/微机原理往年试卷/单片机试卷A(A).txt",
+    "status": "extracted",
+    "chars": 4971
+  },
+  {
+    "source": "materials/微机原理往年试卷/微机原理复习提纲201212.docx",
+    "output": "extracted/微机原理往年试卷/微机原理复习提纲201212.txt",
+    "status": "extracted",
+    "chars": 4446
+  },
+  {
+    "source": "materials/微机原理往年试卷/试卷B（A）.docx",
+    "output": "extracted/微机原理往年试卷/试卷B（A）.txt",
+    "status": "extracted",
+    "chars": 5247
+  },
+  {
+    "source": "materials/教材/《单片机原理及应用（第4版）》.pdf",
+    "output": "extracted/教材/《单片机原理及应用（第4版）》.txt",
+    "status": "extracted",
+    "chars": 464344
+  },
+  {
+    "source": "materials/模拟试卷（题型说明）/第一页.png",
+    "output": "extracted/模拟试卷（题型说明）/第一页.txt",
+    "status": "extracted",
+    "chars": 1106
+  },
+  {
+    "source": "materials/模拟试卷（题型说明）/第二页.png",
+    "output": "extracted/模拟试卷（题型说明）/第二页.txt",
+    "status": "extracted",
+    "chars": 757
+  }
+]
