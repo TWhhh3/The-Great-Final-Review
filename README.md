@@ -20,7 +20,7 @@ npm install
 npm start
 ```
 
-也可以双击项目根目录下的 `start-desktop-question-bank.cmd` 或 `启动桌面题库-无终端.vbs` 启动。
+也可以双击项目根目录下的 `期末复习题库.vbs` 启动。
 
 ## 当前题库数据
 
@@ -30,7 +30,8 @@ npm start
 - 工业机器人应用技术：`app/data/industrial_robot.json`
 - 成型技术基础：`app/data/forming_technology.json`
 
-当前只有 `app/data/microcomputer.json` 已建立。其他科目的 JSON 文件不存在时，应用会显示“尚未添加题库”占位页。
+当前只有 `app/data/microcomputer.json` 已建立。其他科目的 JSON 文件不存在时，应用会显示“尚未添加题库”占位页，后续应该会添加。
+不知道后面能不能联网用AI即时生成题库，但是我光生成这一门的题库就用了20分钟……估计很难……
 
 ## 添加新科目题库
 
