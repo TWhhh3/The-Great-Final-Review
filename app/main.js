@@ -717,7 +717,7 @@ function displayQuestionId(question) {
 }
 
 function currentExamTitle() {
-  return state.examSource === "past" ? "往年真题测试" : "考试模式";
+  return state.examSource === "past" ? "真题考试" : "模拟考试";
 }
 
 function isPastWrongPracticeMode() {
@@ -1655,7 +1655,7 @@ async function startExam(source = "mock") {
   } else {
     stopTimer();
   }
-  dom.loadStatus.textContent = source === "past" ? "往年真题测试" : "考试模式";
+  dom.loadStatus.textContent = source === "past" ? "真题考试" : "模拟考试";
   showQuestion(0);
 }
 
@@ -1679,6 +1679,7 @@ function exitExam() {
   state.pastExamQuestions = [];
   state.examSubmitted = false;
   stopTimer();
+  dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
   state.filteredQuestions = getFilteredQuestions();
   state.wrongQuestions = loadWrongBook();
   state.pastWrongQuestions = loadPastWrongBook();
@@ -1769,7 +1770,9 @@ function stopTimer() {
   }
   state.timerId = null;
   state.examEndTime = null;
-  dom.timerText.textContent = "未开启";
+  if (dom.timerText) {
+    dom.timerText.textContent = "未开启";
+  }
   dom.examTimerText.textContent = "未开启";
 }
 
@@ -1782,7 +1785,9 @@ function updateTimerText() {
   const minutes = Math.floor((remaining % 3600) / 60);
   const seconds = remaining % 60;
   const timeText = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  dom.timerText.textContent = timeText;
+  if (dom.timerText) {
+    dom.timerText.textContent = timeText;
+  }
   dom.examTimerText.textContent = timeText;
   if (remaining <= 0) {
     stopTimer();
