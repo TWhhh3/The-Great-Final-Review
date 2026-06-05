@@ -116,6 +116,10 @@ const pastExamSources = {
 };
 
 const examQuestionCount = examPlan.reduce((total, item) => total + item.count, 0);
+const zoomStep = 0.08;
+const minZoomFactor = 0.7;
+const maxZoomFactor = 1.6;
+let zoomFactor = 1;
 
 const state = {
   allQuestions: [],
@@ -1981,6 +1985,18 @@ function returnToMenu() {
   savePracticeState();
   renderMenu();
 }
+
+function handlePageZoom(event) {
+  if (!event.ctrlKey || !window.courseApi || typeof window.courseApi.setZoomFactor !== "function") {
+    return;
+  }
+  event.preventDefault();
+  const direction = event.deltaY < 0 ? 1 : -1;
+  zoomFactor = Math.max(minZoomFactor, Math.min(maxZoomFactor, Number((zoomFactor + direction * zoomStep).toFixed(2))));
+  window.courseApi.setZoomFactor(zoomFactor);
+}
+
+window.addEventListener("wheel", handlePageZoom, { passive: false });
 
 dom.applyFilterBtn.addEventListener("click", applyFilters);
 dom.practiceMockBtn.addEventListener("click", () => {
