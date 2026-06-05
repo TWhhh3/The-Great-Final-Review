@@ -64,9 +64,15 @@
           <button id="applyFilterBtn" type="button">应用筛选</button>
           <button id="randomBtn" type="button">随机出题</button>
         </div>
+        <div class="field jump-field">
+          <label for="questionJumpInput">题号 / 序号</label>
+          <div class="inline-control">
+            <input id="questionJumpInput" type="text" placeholder="如 Q0001 或 12">
+            <button id="jumpQuestionBtn" type="button">跳转</button>
+          </div>
+        </div>
         <div class="button-row">
-          <button id="prevBtn" type="button">上一题</button>
-          <button id="nextBtn" type="button">下一题</button>
+          <button id="resetPoolBtn" type="button">重置</button>
         </div>
         <div class="mini-stats">
           <span id="modeText">当前模式：普通练习</span>
@@ -95,6 +101,7 @@
         </div>
         <div class="button-row">
           <button id="startExamBtn" type="button">生成模拟试卷</button>
+          <button id="submitExamBtn" type="button">提交试卷</button>
           <button id="exitExamBtn" type="button">退出考试</button>
         </div>
       </section>
@@ -109,6 +116,17 @@
     </aside>
 
     <section class="panel question-panel" aria-label="题目区">
+      <div id="examToolbar" class="exam-toolbar hidden" aria-label="考试操作">
+        <div>
+          <strong>模拟考试</strong>
+          <span id="examPositionText">第 0 / 0 题</span>
+          <span>剩余时间：<b id="examTimerText">未开启</b></span>
+        </div>
+        <div class="button-row">
+          <button id="examSubmitBtn" type="button">提交试卷</button>
+          <button id="examExitBtn" type="button">退出考试</button>
+        </div>
+      </div>
       <div class="question-meta">
         <span id="qidText">-</span>
         <span id="chapterText">-</span>
@@ -122,6 +140,12 @@
         <button id="submitBtn" type="button">提交答案</button>
         <button id="showAnswerBtn" type="button">查看参考答案</button>
         <button id="addWrongBtn" type="button">加入错题本</button>
+        <button id="prevBtn" type="button">上一题</button>
+        <button id="nextBtn" type="button">下一题</button>
+      </div>
+      <div id="examNavRow" class="button-row exam-nav-row hidden">
+        <button id="examPrevBtn" type="button">上一题</button>
+        <button id="examNextBtn" type="button">下一题</button>
       </div>
     </section>
 
