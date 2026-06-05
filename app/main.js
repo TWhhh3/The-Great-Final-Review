@@ -583,7 +583,9 @@ function showQuestion(index) {
   dom.randomBtn.disabled = state.mode !== "practice" || !total;
   dom.jumpQuestionBtn.disabled = !total;
   dom.questionJumpInput.disabled = !total;
-  dom.submitExamBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
+  if (dom.submitExamBtn) {
+    dom.submitExamBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
+  }
   dom.examSubmitBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
   dom.examExitBtn.disabled = state.mode !== "exam";
   dom.submitBtn.textContent = state.mode === "exam" ? "保存答案" : "提交答案";
@@ -1797,9 +1799,13 @@ dom.addWrongBtn.addEventListener("click", () => {
 });
 dom.startExamBtn.addEventListener("click", startMockExam);
 dom.startPastExamBtn.addEventListener("click", startPastExam);
-dom.submitExamBtn.addEventListener("click", () => submitExamPaper());
+if (dom.submitExamBtn) {
+  dom.submitExamBtn.addEventListener("click", () => submitExamPaper());
+}
 dom.examSubmitBtn.addEventListener("click", () => submitExamPaper());
-dom.exitExamBtn.addEventListener("click", exitExam);
+if (dom.exitExamBtn) {
+  dom.exitExamBtn.addEventListener("click", exitExam);
+}
 dom.examExitBtn.addEventListener("click", exitExam);
 dom.clearWrongBtn.addEventListener("click", clearWrongBook);
 dom.clearPastWrongBtn.addEventListener("click", clearPastWrongBook);
