@@ -147,29 +147,28 @@
         <button id="examPrevBtn" type="button">上一题</button>
         <button id="examNextBtn" type="button">下一题</button>
       </div>
-    </section>
-
-    <section id="resultPanel" class="panel result-panel hidden" aria-live="polite">
-      <div class="result-head">
-        <h2 id="resultTitle">结果</h2>
-        <span id="questionScore">0.0 分</span>
-      </div>
-      <div id="resultText" class="result-text"></div>
-      <div class="answer-grid">
-        <div>
-          <h3>参考答案</h3>
-          <pre id="referenceAnswer"></pre>
+      <section id="resultPanel" class="result-panel hidden" aria-live="polite">
+        <div class="result-head">
+          <h2 id="resultTitle">结果</h2>
+          <span id="questionScore">0.0 分</span>
         </div>
-        <div>
-          <h3>解析</h3>
-          <pre id="explanationText"></pre>
+        <div id="resultText" class="result-text"></div>
+        <div class="answer-grid">
+          <div>
+            <h3>参考答案</h3>
+            <pre id="referenceAnswer"></pre>
+          </div>
+          <div>
+            <h3>解析</h3>
+            <pre id="explanationText"></pre>
+          </div>
+          <div class="source-box">
+            <h3>知识点来源</h3>
+            <pre id="sourceText"></pre>
+          </div>
         </div>
-        <div class="source-box">
-          <h3>知识点来源</h3>
-          <pre id="sourceText"></pre>
-        </div>
-      </div>
-      <div id="selfReviewTip" class="tip"></div>
+        <div id="selfReviewTip" class="tip"></div>
+      </section>
     </section>
   </main>
 
