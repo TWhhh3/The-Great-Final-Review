@@ -41,6 +41,7 @@ const dom = {
   submitExamBtn: document.getElementById("submitExamBtn"),
   exitExamBtn: document.getElementById("exitExamBtn"),
   clearWrongBtn: document.getElementById("clearWrongBtn"),
+  wrongBookCountText: document.getElementById("wrongBookCountText"),
   wrongList: document.getElementById("wrongList"),
   qidText: document.getElementById("qidText"),
   chapterText: document.getElementById("chapterText"),
@@ -110,6 +111,8 @@ const state = {
   currentSubject: null,
   subjectStatuses: new Map(),
   wrongQuestions: [],
+  sessionWrongCount: 0,
+  practiceSubmissions: new Map(),
   examAnswers: new Map(),
   examSubmitted: false,
   timerId: null,
@@ -321,8 +324,10 @@ function resetSession() {
   state.currentIndex = 0;
   state.score = 0;
   state.answered = 0;
+  state.sessionWrongCount = 0;
   state.submittedCurrent = false;
   state.mode = "practice";
+  state.practiceSubmissions = new Map();
   state.examAnswers = new Map();
   state.examSubmitted = false;
   stopTimer();
@@ -489,6 +494,12 @@ function showQuestion(index) {
   dom.difficultyText.textContent = field(question, "难度");
   renderQuestionStem(field(question, "题干"));
   renderAnswerInput(question);
+  const submission = state.mode === "practice" ? getPracticeSubmission(question) : null;
+  if (submission) {
+    state.submittedCurrent = true;
+    dom.submitBtn.disabled = true;
+    showResult(question, submission.result);
+  }
   saveSubjectSession();
 }
 
@@ -525,6 +536,7 @@ function renderAnswerInput(question) {
   const type = field(question, "题型");
 
   if (isChoiceType(type)) {
+    const practiceSubmission = state.mode === "practice" ? getPracticeSubmission(question) : null;
     (field(question, "选项") || []).forEach((optionText) => {
       const label = document.createElement("label");
       label.className = "option-item";
@@ -532,7 +544,10 @@ function renderAnswerInput(question) {
       input.type = "radio";
       input.name = "choice";
       input.value = optionText.trim().slice(0, 1).toUpperCase();
-      input.disabled = state.mode === "exam" && state.examSubmitted;
+      input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
+      if (practiceSubmission && practiceSubmission.userAnswer === input.value) {
+        input.checked = true;
+      }
       if (state.mode === "exam" && getExamAnswer(question) === input.value) {
         input.checked = true;
       }
@@ -561,7 +576,11 @@ function renderAnswerInput(question) {
     input.type = "text";
     input.id = "answerInput";
     input.placeholder = "请输入答案";
-    input.disabled = state.mode === "exam" && state.examSubmitted;
+    const practiceSubmission = state.mode === "practice" ? getPracticeSubmission(question) : null;
+    input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
+    if (practiceSubmission) {
+      input.value = practiceSubmission.userAnswer;
+    }
     if (state.mode === "exam") {
       input.value = getExamAnswer(question);
       input.addEventListener("input", saveCurrentExamAnswer);
@@ -571,7 +590,11 @@ function renderAnswerInput(question) {
     const textarea = document.createElement("textarea");
     textarea.id = "answerInput";
     textarea.placeholder = "请输入你的答案、分析过程或程序";
-    textarea.disabled = state.mode === "exam" && state.examSubmitted;
+    const practiceSubmission = state.mode === "practice" ? getPracticeSubmission(question) : null;
+    textarea.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
+    if (practiceSubmission) {
+      textarea.value = practiceSubmission.userAnswer;
+    }
     if (state.mode === "exam") {
       textarea.value = getExamAnswer(question);
       textarea.addEventListener("input", saveCurrentExamAnswer);
@@ -586,6 +609,10 @@ function currentQuestion() {
 
 function questionKey(question) {
   return field(question, "编号") || String(state.currentIndex);
+}
+
+function getPracticeSubmission(question) {
+  return state.practiceSubmissions.get(questionKey(question)) || null;
 }
 
 function getExamAnswer(question) {
@@ -749,7 +776,11 @@ function submitAnswer() {
   const result = evaluate(question, userAnswer);
   state.score += result.score;
   state.answered += 1;
+  if (!result.correct) {
+    state.sessionWrongCount += 1;
+  }
   state.submittedCurrent = true;
+  state.practiceSubmissions.set(questionKey(question), { userAnswer, result });
   dom.submitBtn.disabled = true;
   updateStats();
   showResult(question, result);
@@ -790,7 +821,8 @@ function updateStats() {
   dom.answeredText.textContent = String(state.answered);
   const accuracy = state.answered ? (state.score / state.answered) * 100 : 0;
   dom.accuracyText.textContent = `${accuracy.toFixed(0)}%`;
-  dom.wrongCountText.textContent = String(state.wrongQuestions.length);
+  dom.wrongCountText.textContent = String(state.sessionWrongCount);
+  dom.wrongBookCountText.textContent = String(state.wrongQuestions.length);
 }
 
 function showPrevious() {
@@ -826,6 +858,13 @@ function showRandom() {
 
 function resetCurrentPool() {
   saveCurrentExamAnswer();
+  if (state.mode === "practice") {
+    state.practiceSubmissions = new Map();
+    state.score = 0;
+    state.answered = 0;
+    state.sessionWrongCount = 0;
+    updateStats();
+  }
   if (state.mode !== "exam") {
     state.filteredQuestions = getFilteredQuestions();
   }
@@ -947,6 +986,7 @@ function startExam() {
   state.filteredQuestions = paper;
   state.score = 0;
   state.answered = 0;
+  state.sessionWrongCount = 0;
   state.submittedCurrent = false;
   state.examAnswers = new Map();
   state.examSubmitted = false;
@@ -963,6 +1003,9 @@ function startExam() {
 function exitExam() {
   saveCurrentExamAnswer();
   state.mode = "practice";
+  state.score = 0;
+  state.answered = 0;
+  state.sessionWrongCount = 0;
   state.examAnswers = new Map();
   state.examSubmitted = false;
   stopTimer();
@@ -985,6 +1028,7 @@ function submitExamPaper(confirmSubmission = true) {
 
   let totalScore = 0;
   let answeredCount = 0;
+  let wrongCount = 0;
   const lines = [];
   const wrongLines = [];
 
@@ -1003,6 +1047,7 @@ function submitExamPaper(confirmSubmission = true) {
       answeredCount += 1;
     }
     if (!result.correct) {
+      wrongCount += 1;
       addWrongQuestion(question, userAnswer, false);
       wrongLines.push(`第 ${index + 1} 题｜${field(question, "编号")}｜${field(question, "题型")}｜你的答案：${userAnswer || "未填写"}｜参考答案：${field(question, "答案")}｜得分 ${result.score.toFixed(2)}`);
     }
@@ -1017,6 +1062,7 @@ function submitExamPaper(confirmSubmission = true) {
 
   state.score = Number(totalScore.toFixed(2));
   state.answered = state.filteredQuestions.length;
+  state.sessionWrongCount = wrongCount;
   state.examSubmitted = true;
   stopTimer();
   updateStats();
@@ -1206,6 +1252,7 @@ function clearWrongBook() {
 function returnToMenu() {
   saveCurrentExamAnswer();
   saveSubjectSession();
+  state.practiceSubmissions = new Map();
   renderMenu();
 }
 

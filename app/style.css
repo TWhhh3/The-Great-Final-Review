@@ -391,6 +391,19 @@ button:disabled {
   margin: 0;
 }
 
+.section-head small {
+  display: inline-flex;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eaf1f8;
+  color: var(--brand-dark);
+  font-size: 13px;
+}
+
 .wrong-list {
   display: grid;
   gap: 8px;
