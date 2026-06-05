@@ -19,8 +19,11 @@ const dom = {
   examQuestionNav: document.getElementById("examQuestionNav"),
   backToMenuBtn: document.getElementById("backToMenuBtn"),
   currentSubjectText: document.getElementById("currentSubjectText"),
+  practiceMockBtn: document.getElementById("practiceMockBtn"),
+  practicePastBtn: document.getElementById("practicePastBtn"),
   chapterFilter: document.getElementById("chapterFilter"),
   typeFilter: document.getElementById("typeFilter"),
+  difficultyField: document.getElementById("difficultyField"),
   difficultyFilter: document.getElementById("difficultyFilter"),
   applyFilterBtn: document.getElementById("applyFilterBtn"),
   randomBtn: document.getElementById("randomBtn"),
@@ -113,12 +116,14 @@ const examQuestionCount = examPlan.reduce((total, item) => total + item.count, 0
 
 const state = {
   allQuestions: [],
+  pastPracticeQuestions: [],
   filteredQuestions: [],
   currentIndex: 0,
   score: 0,
   answered: 0,
   submittedCurrent: false,
   mode: "practice",
+  practiceSource: "mock",
   examSource: "mock",
   currentSubject: null,
   subjectStatuses: new Map(),
@@ -145,6 +150,11 @@ function field(question, name) {
 
 function isChoiceType(type) {
   return String(type).includes("选择");
+}
+
+function isMultipleChoiceType(type) {
+  const text = String(type);
+  return text.includes("多项选择") || text.includes("多选");
 }
 
 function isFillType(type) {
@@ -248,22 +258,51 @@ async function loadPastExamQuestions(subject) {
   return flattenBank(bank);
 }
 
+function practiceQuestions() {
+  return state.practiceSource === "past" ? state.pastPracticeQuestions : state.allQuestions;
+}
+
+function updatePracticeSourceControls() {
+  const isPast = state.practiceSource === "past";
+  dom.practiceMockBtn.classList.toggle("active", !isPast);
+  dom.practicePastBtn.classList.toggle("active", isPast);
+  dom.difficultyField.classList.toggle("hidden", isPast);
+  if (isPast) {
+    dom.difficultyFilter.value = "";
+  }
+}
+
+function refreshPracticeFilters() {
+  const questions = practiceQuestions();
+  fillSelect(dom.chapterFilter, uniqueValues(questions, (q) => field(q, "章节")), "全部章节");
+  fillSelect(dom.typeFilter, uniqueValues(questions, (q) => field(q, "题型")), "全部题型");
+  fillSelect(dom.difficultyFilter, uniqueValues(questions, (q) => field(q, "难度")), "全部难度");
+  updatePracticeSourceControls();
+}
+
 async function getSubjectStatus(subject) {
   try {
     const bank = await readSubjectBank(subject);
     const questions = flattenBank(bank);
+    const pastQuestions = await loadPastExamQuestions(subject).catch(() => []);
     return {
       available: questions.length > 0,
       count: questions.length,
+      pastCount: pastQuestions.length,
       error: "",
     };
   } catch (error) {
     return {
       available: false,
       count: 0,
+      pastCount: 0,
       error: error.message,
     };
   }
+}
+
+function questionCountText(mockCount, pastCount) {
+  return `${mockCount} 道模拟题，${pastCount} 道真题`;
 }
 
 function showView(viewName) {
@@ -323,7 +362,7 @@ function renderSubjectCard(subject, status) {
   description.textContent = status.loading
     ? "正在检测题库文件..."
     : status.available
-      ? `共 ${status.count} 道题`
+      ? `共 ${questionCountText(status.count, status.pastCount || 0)}`
       : "该科目后续可添加题库文件";
   textBox.appendChild(title);
   textBox.appendChild(description);
@@ -366,6 +405,7 @@ function showPlaceholder(subject) {
 
 function resetSession() {
   state.allQuestions = [];
+  state.pastPracticeQuestions = [];
   state.filteredQuestions = [];
   state.currentIndex = 0;
   state.score = 0;
@@ -373,6 +413,7 @@ function resetSession() {
   state.sessionWrongCount = 0;
   state.submittedCurrent = false;
   state.mode = "practice";
+  state.practiceSource = "mock";
   state.practiceAnswers = new Map();
   state.practiceSubmissions = new Map();
   state.wrongPracticeAnswers = new Map();
@@ -427,16 +468,15 @@ async function loadBank(subject) {
   if (!state.allQuestions.length) {
     throw new Error("题库为空。");
   }
+  state.pastPracticeQuestions = await loadPastExamQuestions(subject).catch(() => []);
   state.filteredQuestions = [...state.allQuestions];
 
-  fillSelect(dom.chapterFilter, uniqueValues(state.allQuestions, (q) => field(q, "章节")), "全部章节");
-  fillSelect(dom.typeFilter, uniqueValues(state.allQuestions, (q) => field(q, "题型")), "全部题型");
-  fillSelect(dom.difficultyFilter, uniqueValues(state.allQuestions, (q) => field(q, "难度")), "全部难度");
+  refreshPracticeFilters();
 
-  dom.loadStatus.textContent = `已加载 ${state.allQuestions.length} 道题`;
+  dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
   renderWrongBook();
   renderPastWrongBook();
-  restoreSubjectSession();
+  await restoreSubjectSession(true);
 }
 
 function applyFilters() {
@@ -447,19 +487,67 @@ function applyFilters() {
   state.examSubmitted = false;
   stopTimer();
   state.filteredQuestions = getFilteredQuestions();
+  updatePracticeLoadStatus();
   showQuestion(0);
 }
 
 function getFilteredQuestions() {
   const chapter = dom.chapterFilter.value;
   const type = dom.typeFilter.value;
-  const difficulty = dom.difficultyFilter.value;
+  const difficulty = state.practiceSource === "past" ? "" : dom.difficultyFilter.value;
 
-  return state.allQuestions.filter((question) => {
+  return practiceQuestions().filter((question) => {
     return (!chapter || field(question, "章节") === chapter)
       && (!type || field(question, "题型") === type)
       && (!difficulty || field(question, "难度") === difficulty);
   });
+}
+
+function practiceSourceLabel() {
+  return state.practiceSource === "past" ? "真题" : "模拟题";
+}
+
+function updatePracticeLoadStatus() {
+  const count = practiceQuestions().length;
+  if (state.practiceSource === "past" && !count) {
+    dom.loadStatus.textContent = "尚未添加往年真题";
+    return;
+  }
+  dom.loadStatus.textContent = `已加载 ${count} 道${practiceSourceLabel()}`;
+}
+
+async function switchPracticeSource(source, session = null, keepCombinedStatus = false) {
+  saveCurrentPracticeAnswer();
+  saveCurrentExamAnswer();
+  state.mode = "practice";
+  state.examAnswers = new Map();
+  state.examSubmitted = false;
+  stopTimer();
+  state.practiceSource = source;
+
+  if (source === "past") {
+    try {
+      state.pastPracticeQuestions = await loadPastExamQuestions(state.currentSubject);
+    } catch {
+      state.pastPracticeQuestions = [];
+    }
+  }
+
+  refreshPracticeFilters();
+  if (session) {
+    setSelectValueIfExists(dom.chapterFilter, session.chapter);
+    setSelectValueIfExists(dom.typeFilter, session.type);
+    setSelectValueIfExists(dom.difficultyFilter, session.difficulty);
+  }
+  state.filteredQuestions = getFilteredQuestions();
+  if (keepCombinedStatus) {
+    dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
+  } else {
+    updatePracticeLoadStatus();
+  }
+  const restoredIndex = findQuestionIndex(session?.questionId);
+  const fallbackIndex = Number.isInteger(session?.index) ? session.index : 0;
+  showQuestion(restoredIndex >= 0 ? restoredIndex : fallbackIndex);
 }
 
 function subjectSessionKey() {
@@ -474,16 +562,17 @@ function saveSubjectSession() {
 
   const question = currentQuestion();
   const session = {
+    practiceSource: state.practiceSource,
     chapter: dom.chapterFilter.value,
     type: dom.typeFilter.value,
-    difficulty: dom.difficultyFilter.value,
+    difficulty: state.practiceSource === "past" ? "" : dom.difficultyFilter.value,
     questionId: question ? field(question, "编号") : "",
     index: state.currentIndex,
   };
   localStorage.setItem(key, JSON.stringify(session));
 }
 
-function restoreSubjectSession() {
+async function restoreSubjectSession(keepCombinedStatus = false) {
   let session = null;
   const key = subjectSessionKey();
   if (key) {
@@ -494,16 +583,7 @@ function restoreSubjectSession() {
     }
   }
 
-  if (session) {
-    setSelectValueIfExists(dom.chapterFilter, session.chapter);
-    setSelectValueIfExists(dom.typeFilter, session.type);
-    setSelectValueIfExists(dom.difficultyFilter, session.difficulty);
-  }
-
-  state.filteredQuestions = getFilteredQuestions();
-  const restoredIndex = findQuestionIndex(session?.questionId);
-  const fallbackIndex = Number.isInteger(session?.index) ? session.index : 0;
-  showQuestion(restoredIndex >= 0 ? restoredIndex : fallbackIndex);
+  await switchPracticeSource(session?.practiceSource === "past" ? "past" : "mock", session, keepCombinedStatus);
 }
 
 function setSelectValueIfExists(select, value) {
@@ -535,7 +615,7 @@ function displayQuestionId(question) {
 }
 
 function currentExamTitle() {
-  return state.examSource === "past" ? "往年真题测试" : "模拟考试";
+  return state.examSource === "past" ? "往年真题测试" : "考试模式";
 }
 
 function isPastWrongPracticeMode() {
@@ -571,7 +651,7 @@ function showQuestion(index) {
     ? "当前模式：错题本重做"
     : isPastWrongPracticeMode()
     ? "当前模式：真题错题重做"
-    : "当前模式：普通练习";
+    : `当前模式：练习模式（${practiceSourceLabel()}）`;
   dom.poolText.textContent = `当前题池：${total}`;
   dom.positionText.textContent = total ? `第 ${safeIndex + 1} / ${total} 题` : "第 0 / 0 题";
   dom.examPositionText.textContent = total ? `第 ${safeIndex + 1} / ${total} 题` : "第 0 / 0 题";
@@ -661,26 +741,27 @@ function renderAnswerInput(question) {
   const type = field(question, "题型");
 
   if (isChoiceType(type)) {
+    const isMultiple = isMultipleChoiceType(type);
     const practiceSubmission = isPracticeAnswerMode() ? getPracticeSubmission(question) : null;
     const practiceAnswer = isPracticeAnswerMode() ? getPracticeAnswer(question) : "";
     (field(question, "选项") || []).forEach((optionText) => {
       const label = document.createElement("label");
       label.className = "option-item";
       const input = document.createElement("input");
-      input.type = "radio";
+      input.type = isMultiple ? "checkbox" : "radio";
       input.name = "choice";
       input.value = optionText.trim().slice(0, 1).toUpperCase();
       input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
-      if (practiceSubmission && practiceSubmission.userAnswer === input.value) {
+      if (practiceSubmission && choiceAnswerIncludes(practiceSubmission.userAnswer, input.value)) {
         input.checked = true;
       }
-      if (!practiceSubmission && practiceAnswer === input.value) {
+      if (!practiceSubmission && choiceAnswerIncludes(practiceAnswer, input.value)) {
         input.checked = true;
       }
       if (isPracticeAnswerMode() && !practiceSubmission) {
         input.addEventListener("change", saveCurrentPracticeAnswer);
       }
-      if (state.mode === "exam" && getExamAnswer(question) === input.value) {
+      if (state.mode === "exam" && choiceAnswerIncludes(getExamAnswer(question), input.value)) {
         input.checked = true;
       }
       if (state.mode === "exam") {
@@ -697,7 +778,7 @@ function renderAnswerInput(question) {
 
   const hint = document.createElement("p");
   hint.textContent = state.mode === "exam"
-    ? "模拟考试中可随时修改答案，点击保存答案或切换题目会保留当前作答，交卷后统一显示答案。"
+    ? "考试模式中可随时修改答案，点击保存答案或切换题目会保留当前作答，交卷后统一显示答案。"
     : isFillType(type)
     ? "填写关键词即可，判断时会忽略大小写和多余空格。"
     : "输入你的作答。提交后会显示参考答案、解析和按文本重合度估算的自评分。";
@@ -746,7 +827,8 @@ function currentQuestion() {
 }
 
 function questionKey(question) {
-  return field(question, "编号") || String(state.currentIndex);
+  const id = field(question, "编号") || String(state.currentIndex);
+  return state.mode === "practice" ? `${state.practiceSource}:${id}` : id;
 }
 
 function getPracticeSubmission(question) {
@@ -801,8 +883,8 @@ function saveCurrentExamAnswer() {
 
 function getUserAnswer(question) {
   if (isChoiceType(field(question, "题型"))) {
-    const checked = document.querySelector("input[name='choice']:checked");
-    return checked ? checked.value : "";
+    const checked = [...document.querySelectorAll("input[name='choice']:checked")];
+    return checked.map((input) => input.value).sort().join("");
   }
   const input = document.getElementById("answerInput");
   return input ? input.value : "";
@@ -823,6 +905,14 @@ function lockCurrentAnswerInput(question) {
 
 function normalizeFill(value) {
   return String(value).toLowerCase().replace(/\s+/g, "");
+}
+
+function parseChoiceLetters(value) {
+  return [...new Set(String(value).toUpperCase().match(/[A-Z]/g) || [])].sort();
+}
+
+function choiceAnswerIncludes(answer, value) {
+  return parseChoiceLetters(answer).includes(String(value).toUpperCase());
 }
 
 function normalizeChineseAnswer(value) {
@@ -879,6 +969,25 @@ function evaluate(question, userAnswer) {
   const answer = field(question, "答案");
 
   if (isChoiceType(type)) {
+    if (isMultipleChoiceType(type)) {
+      const expectedLetters = parseChoiceLetters(answer);
+      const actualLetters = parseChoiceLetters(userAnswer);
+      const wrongLetters = actualLetters.filter((letter) => !expectedLetters.includes(letter));
+      const matchedCount = actualLetters.filter((letter) => expectedLetters.includes(letter)).length;
+      const score = wrongLetters.length ? 0 : matchedCount;
+      const correct = expectedLetters.length > 0
+        && wrongLetters.length === 0
+        && matchedCount === expectedLetters.length;
+      return {
+        score,
+        correct,
+        title: correct ? "回答正确" : "回答错误",
+        text: `你的答案：${actualLetters.join("") || "未填写"}；正确答案：${expectedLetters.join("") || "未提供"}`,
+        className: correct ? "ok" : "bad",
+        tip: "多项选择题按选项字母判断：选对一个正确选项得 1 分；只要选择了错误选项，本题得 0 分。",
+      };
+    }
+
     const expected = String(answer).trim().slice(0, 1).toUpperCase();
     const actual = String(userAnswer).trim().slice(0, 1).toUpperCase();
     return {
@@ -1051,6 +1160,7 @@ function showRandom() {
     return;
   }
   const randomIndex = Math.floor(Math.random() * state.filteredQuestions.length);
+  updatePracticeLoadStatus();
   showQuestion(randomIndex);
 }
 
@@ -1120,7 +1230,7 @@ function jumpToQuestion() {
     return;
   }
   dom.questionJumpInput.blur();
-  dom.loadStatus.textContent = `已加载 ${state.allQuestions.length} 道题`;
+  updatePracticeLoadStatus();
   showQuestion(index);
 }
 
@@ -1251,6 +1361,39 @@ function pickBalanced(pool, count, usedIds) {
   return picked;
 }
 
+function examTypeOrder(question) {
+  const type = field(question, "题型");
+  if (isChoiceType(type)) {
+    return isMultipleChoiceType(type) ? 1 : 0;
+  }
+  if (isFillType(type)) {
+    return 2;
+  }
+  if (isProgramReadingType(type)) {
+    return 3;
+  }
+  if (isShortAnswerType(type)) {
+    return 4;
+  }
+  if (isSystemExpandType(type)) {
+    return 5;
+  }
+  if (isProgramDesignType(type)) {
+    return 6;
+  }
+  return 99;
+}
+
+function orderExamPaper(paper) {
+  return paper
+    .map((question, index) => ({ question, index }))
+    .sort((a, b) => {
+      const orderDiff = examTypeOrder(a.question) - examTypeOrder(b.question);
+      return orderDiff || a.index - b.index;
+    })
+    .map((item) => item.question);
+}
+
 function buildExamPaper(sourceQuestions = state.allQuestions) {
   const usedIds = new Set();
   const paper = [];
@@ -1268,7 +1411,7 @@ function buildExamPaper(sourceQuestions = state.allQuestions) {
   if (warnings.length) {
     alert(warnings.join("\n"));
   }
-  return paper.map((question, index) => ({
+  return orderExamPaper(paper).map((question, index) => ({
     ...question,
     考试编号: index + 1,
   }));
@@ -1324,7 +1467,7 @@ async function startExam(source = "mock") {
     paper = buildExamPaper(sourceQuestions);
   }
   if (!paper.length) {
-    alert("没有可用于模拟考试的题目。");
+    alert("没有可用于考试模式的题目。");
     return;
   }
   if (source === "past") {
@@ -1349,7 +1492,7 @@ async function startExam(source = "mock") {
   } else {
     stopTimer();
   }
-  dom.loadStatus.textContent = source === "past" ? "往年真题测试" : "模拟考试";
+  dom.loadStatus.textContent = source === "past" ? "往年真题测试" : "考试模式";
   showQuestion(0);
 }
 
@@ -1490,7 +1633,7 @@ function updateTimerText() {
   dom.examTimerText.textContent = timeText;
   if (remaining <= 0) {
     stopTimer();
-    alert("模拟考试时间到。");
+    alert("考试模式时间到。");
     if (state.mode === "exam" && !state.examSubmitted) {
       submitExamPaperWithoutConfirm();
     }
@@ -1764,6 +1907,16 @@ function returnToMenu() {
 }
 
 dom.applyFilterBtn.addEventListener("click", applyFilters);
+dom.practiceMockBtn.addEventListener("click", () => {
+  switchPracticeSource("mock").catch((error) => {
+    dom.loadStatus.textContent = error.message;
+  });
+});
+dom.practicePastBtn.addEventListener("click", () => {
+  switchPracticeSource("past").catch((error) => {
+    dom.loadStatus.textContent = error.message;
+  });
+});
 dom.randomBtn.addEventListener("click", showRandom);
 dom.jumpQuestionBtn.addEventListener("mousedown", (event) => {
   event.preventDefault();

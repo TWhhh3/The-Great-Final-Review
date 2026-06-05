@@ -300,6 +300,10 @@ textarea:focus {
   margin-top: 8px;
 }
 
+.source-row {
+  margin: 0 0 14px;
+}
+
 button {
   min-height: 38px;
   padding: 0 14px;
@@ -340,6 +344,13 @@ button:disabled {
 #submitExamBtn:hover,
 #examSubmitBtn:hover {
   background: var(--brand-dark);
+}
+
+#practiceMockBtn.active,
+#practicePastBtn.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
 }
 
 .mini-stats {

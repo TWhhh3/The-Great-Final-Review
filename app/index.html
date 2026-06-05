@@ -47,7 +47,11 @@
       </section>
 
       <section class="panel controls" aria-label="筛选区">
-        <h2>筛选练习</h2>
+        <h2>练习模式</h2>
+        <div class="button-row source-row" aria-label="练习题源">
+          <button id="practiceMockBtn" type="button">模拟题</button>
+          <button id="practicePastBtn" type="button">真题</button>
+        </div>
         <div class="field">
           <label for="chapterFilter">章节</label>
           <select id="chapterFilter"></select>
@@ -56,7 +60,7 @@
           <label for="typeFilter">题型</label>
           <select id="typeFilter"></select>
         </div>
-        <div class="field">
+        <div id="difficultyField" class="field">
           <label for="difficultyFilter">难度</label>
           <select id="difficultyFilter"></select>
         </div>
@@ -65,7 +69,7 @@
           <button id="randomBtn" type="button">随机出题</button>
         </div>
         <div class="field jump-field">
-          <label for="questionJumpInput">题号 / 序号</label>
+          <label for="questionJumpInput">题号</label>
           <div class="inline-control">
             <input id="questionJumpInput" type="text" placeholder="如 Q0001 或 12">
             <button id="jumpQuestionBtn" type="button">跳转</button>
@@ -81,8 +85,8 @@
         </div>
       </section>
 
-      <section class="panel exam-panel" aria-label="模拟考试">
-        <h2>模拟考试</h2>
+      <section class="panel exam-panel" aria-label="考试模式">
+        <h2>考试模式</h2>
         <div class="exam-grid">
           <span>选择题 15</span>
           <span>填空题 10</span>
@@ -110,7 +114,7 @@
     <section class="panel question-panel" aria-label="题目区">
       <div id="examToolbar" class="exam-toolbar hidden" aria-label="考试操作">
         <div>
-          <strong>模拟考试</strong>
+          <strong>考试模式</strong>
           <span id="examPositionText">第 0 / 0 题</span>
           <span>剩余时间：<b id="examTimerText">未开启</b></span>
         </div>
