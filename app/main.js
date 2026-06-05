@@ -16,6 +16,7 @@ const dom = {
   examNavRow: document.getElementById("examNavRow"),
   examPrevBtn: document.getElementById("examPrevBtn"),
   examNextBtn: document.getElementById("examNextBtn"),
+  examQuestionNav: document.getElementById("examQuestionNav"),
   backToMenuBtn: document.getElementById("backToMenuBtn"),
   currentSubjectText: document.getElementById("currentSubjectText"),
   chapterFilter: document.getElementById("chapterFilter"),
@@ -236,6 +237,7 @@ function updateExamLayout() {
   dom.questionView.classList.toggle("exam-layout", isExam);
   dom.examToolbar.classList.toggle("hidden", !isExam);
   dom.examNavRow.classList.toggle("hidden", !isExam);
+  dom.examQuestionNav.classList.toggle("hidden", !isExam);
   if (!dom.questionView.classList.contains("hidden")) {
     dom.scoreboard.classList.toggle("hidden", isExam && !state.examSubmitted);
   }
@@ -477,6 +479,13 @@ function normalizeQuestionId(value) {
   return String(value).trim().toUpperCase();
 }
 
+function displayQuestionId(question) {
+  if (state.mode === "exam" && question["考试编号"]) {
+    return `第 ${question["考试编号"]} 题`;
+  }
+  return field(question, "编号");
+}
+
 function showQuestion(index) {
   updateExamLayout();
   const total = state.filteredQuestions.length;
@@ -514,17 +523,19 @@ function showQuestion(index) {
     dom.questionStem.textContent = "没有符合条件的题目";
     dom.optionsBox.innerHTML = "";
     dom.answerBox.innerHTML = "";
+    renderExamQuestionNav();
     return;
   }
 
   const question = state.filteredQuestions[safeIndex];
-  dom.qidText.textContent = field(question, "编号");
-  dom.questionJumpInput.value = field(question, "编号");
+  dom.qidText.textContent = displayQuestionId(question);
+  dom.questionJumpInput.value = state.mode === "exam" ? String(question["考试编号"] || safeIndex + 1) : field(question, "编号");
   dom.chapterText.textContent = field(question, "章节");
   dom.typeText.textContent = field(question, "题型");
   dom.difficultyText.textContent = field(question, "难度");
   renderQuestionStem(field(question, "题干"));
   renderAnswerInput(question);
+  renderExamQuestionNav();
   const submission = state.mode === "practice" ? getPracticeSubmission(question) : null;
   if (submission) {
     state.submittedCurrent = true;
@@ -687,6 +698,7 @@ function saveCurrentExamAnswer() {
     return;
   }
   state.examAnswers.set(questionKey(question), getUserAnswer(question).trim());
+  renderExamQuestionNav();
 }
 
 function getUserAnswer(question) {
@@ -972,6 +984,16 @@ function jumpToQuestion() {
 
 function findQuestionIndexByInput(input) {
   const normalized = normalizeQuestionId(input);
+  if (state.mode === "exam") {
+    const examNumber = Number.parseInt(input.replace(/^第\s*/i, "").replace(/\s*题$/i, ""), 10);
+    if (Number.isInteger(examNumber) && examNumber > 0) {
+      const examIndex = state.filteredQuestions.findIndex((question, index) => (question["考试编号"] || index + 1) === examNumber);
+      if (examIndex >= 0) {
+        return examIndex;
+      }
+    }
+  }
+
   const exactIndex = state.filteredQuestions.findIndex((question) => normalizeQuestionId(field(question, "编号")) === normalized);
   if (exactIndex >= 0) {
     return exactIndex;
@@ -990,6 +1012,55 @@ function findQuestionIndexByInput(input) {
 
   const ordinalIndex = number - 1;
   return ordinalIndex >= 0 && ordinalIndex < state.filteredQuestions.length ? ordinalIndex : -1;
+}
+
+function renderExamQuestionNav() {
+  if (state.mode !== "exam") {
+    dom.examQuestionNav.innerHTML = "";
+    return;
+  }
+
+  dom.examQuestionNav.innerHTML = "";
+  const title = document.createElement("h3");
+  title.textContent = "题号导航";
+  dom.examQuestionNav.appendChild(title);
+
+  const groups = new Map();
+  state.filteredQuestions.forEach((question, index) => {
+    const type = field(question, "题型") || "其他题型";
+    if (!groups.has(type)) {
+      groups.set(type, []);
+    }
+    groups.get(type).push({ question, index });
+  });
+
+  groups.forEach((items, type) => {
+    const group = document.createElement("section");
+    group.className = "exam-nav-group";
+
+    const heading = document.createElement("h4");
+    heading.textContent = type;
+    group.appendChild(heading);
+
+    const buttons = document.createElement("div");
+    buttons.className = "exam-nav-buttons";
+
+    items.forEach(({ question, index }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = String(question["考试编号"] || index + 1);
+      button.classList.toggle("current", index === state.currentIndex);
+      button.classList.toggle("answered", Boolean(getExamAnswer(question)));
+      button.addEventListener("click", () => {
+        saveCurrentExamAnswer();
+        showQuestion(index);
+      });
+      buttons.appendChild(button);
+    });
+
+    group.appendChild(buttons);
+    dom.examQuestionNav.appendChild(group);
+  });
 }
 
 function shuffle(items) {
@@ -1055,7 +1126,10 @@ function buildExamPaper() {
   if (warnings.length) {
     alert(warnings.join("\n"));
   }
-  return paper;
+  return paper.map((question, index) => ({
+    ...question,
+    考试编号: index + 1,
+  }));
 }
 
 function startExam() {
@@ -1117,6 +1191,8 @@ function submitExamPaper(confirmSubmission = true) {
 
   state.filteredQuestions.forEach((question, index) => {
     const userAnswer = getExamAnswer(question);
+    const examLabel = `第 ${question["考试编号"] || index + 1} 题`;
+    const sourceId = field(question, "编号");
     const result = userAnswer ? evaluate(question, userAnswer) : {
       score: 0,
       correct: false,
@@ -1132,10 +1208,10 @@ function submitExamPaper(confirmSubmission = true) {
     if (!result.correct) {
       wrongCount += 1;
       addWrongQuestion(question, userAnswer, false);
-      wrongLines.push(`第 ${index + 1} 题｜${field(question, "编号")}｜${field(question, "题型")}｜你的答案：${userAnswer || "未填写"}｜参考答案：${field(question, "答案")}｜得分 ${result.score.toFixed(2)}`);
+      wrongLines.push(`${examLabel}｜原题号 ${sourceId}｜${field(question, "题型")}｜你的答案：${userAnswer || "未填写"}｜参考答案：${field(question, "答案")}｜得分 ${result.score.toFixed(2)}`);
     }
     lines.push([
-      `第 ${index + 1} 题｜${field(question, "编号")}｜${field(question, "题型")}｜${result.correct ? "正确" : "需复核/错误"}｜${result.score.toFixed(2)} 分`,
+      `${examLabel}｜原题号 ${sourceId}｜${field(question, "题型")}｜${result.correct ? "正确" : "需复核/错误"}｜${result.score.toFixed(2)} 分`,
       `你的答案：${userAnswer || "未填写"}`,
       `参考答案：${field(question, "答案")}`,
       `解析：${field(question, "解析") || "无"}`,
