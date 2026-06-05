@@ -94,6 +94,10 @@ body {
   grid-column: 1;
 }
 
+.layout.exam-layout .wrong-book-area {
+  display: none;
+}
+
 .menu-view,
 .placeholder-view {
   width: min(1100px, calc(100% - 32px));
@@ -214,8 +218,6 @@ body {
   display: grid;
   gap: 14px;
   align-self: start;
-  position: sticky;
-  top: 16px;
 }
 
 .panel {
@@ -323,6 +325,7 @@ button:disabled {
 #applyFilterBtn,
 #submitBtn,
 #startExamBtn,
+#startPastExamBtn,
 #submitExamBtn,
 #examSubmitBtn {
   background: var(--brand);
@@ -333,6 +336,7 @@ button:disabled {
 #applyFilterBtn:hover,
 #submitBtn:hover,
 #startExamBtn:hover,
+#startPastExamBtn:hover,
 #submitExamBtn:hover,
 #examSubmitBtn:hover {
   background: var(--brand-dark);
@@ -407,9 +411,18 @@ button:disabled {
 .wrong-list {
   display: grid;
   gap: 8px;
-  max-height: 380px;
+  min-height: 260px;
+  max-height: 520px;
   overflow: auto;
   color: var(--muted);
+}
+
+.wrong-book-area {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
 }
 
 .wrong-item {
@@ -715,6 +728,10 @@ pre {
 
   .side {
     position: static;
+  }
+
+  .wrong-book-area {
+    grid-template-columns: 1fr;
   }
 
   .result-panel {

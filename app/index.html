@@ -101,18 +101,12 @@
         </div>
         <div class="button-row">
           <button id="startExamBtn" type="button">生成模拟试卷</button>
+          <button id="startPastExamBtn" type="button">往年真题测试</button>
           <button id="submitExamBtn" type="button">提交试卷</button>
           <button id="exitExamBtn" type="button">退出考试</button>
         </div>
       </section>
 
-      <section class="panel wrong-panel" aria-label="错题本">
-        <div class="section-head">
-          <h2>错题本 <small id="wrongBookCountText">0</small></h2>
-          <button id="clearWrongBtn" type="button">清空</button>
-        </div>
-        <div id="wrongList" class="wrong-list">暂无错题</div>
-      </section>
     </aside>
 
     <section class="panel question-panel" aria-label="题目区">
@@ -169,6 +163,24 @@
           </div>
         </div>
         <div id="selfReviewTip" class="tip"></div>
+      </section>
+    </section>
+
+    <section class="wrong-book-area" aria-label="错题本区">
+      <section class="panel wrong-panel" aria-label="错题本">
+        <div class="section-head">
+          <h2>错题本 <small id="wrongBookCountText">0</small></h2>
+          <button id="clearWrongBtn" type="button">清空</button>
+        </div>
+        <div id="wrongList" class="wrong-list">暂无错题</div>
+      </section>
+
+      <section class="panel wrong-panel" aria-label="真题错题本">
+        <div class="section-head">
+          <h2>真题错题本 <small id="pastWrongBookCountText">0</small></h2>
+          <button id="clearPastWrongBtn" type="button">清空</button>
+        </div>
+        <div id="pastWrongList" class="wrong-list">暂无真题错题</div>
       </section>
     </section>
   </main>

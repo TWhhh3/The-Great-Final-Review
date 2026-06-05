@@ -29,6 +29,7 @@ npm start
 ## 当前题库数据
 
 - 微机原理：`app/data/microcomputer.json`
+- 微机原理往年真题：`app/data/past_exams_microcomputer.json`
 - 传感与信号处理：`app/data/sensor_signal.json`
 - 机械制造技术基础：`app/data/manufacturing.json`
 - 工业机器人应用技术：`app/data/industrial_robot.json`
@@ -61,3 +62,23 @@ npm start
 ```
 
 伟大的本科生期末大复习万岁！
+
+## 生成往年真题题库
+
+往年真题 Markdown 放在：
+
+```text
+materials/往年真题.md
+```
+
+转换为应用可读取的 JSON：
+
+```bash
+python scripts/convert_past_exams_md_to_json.py
+```
+
+生成结果：
+
+```text
+app/data/past_exams_microcomputer.json
+```
