@@ -112,6 +112,8 @@ const state = {
   subjectStatuses: new Map(),
   wrongQuestions: [],
   sessionWrongCount: 0,
+  practiceStates: new Map(),
+  practiceAnswers: new Map(),
   practiceSubmissions: new Map(),
   examAnswers: new Map(),
   examSubmitted: false,
@@ -327,6 +329,7 @@ function resetSession() {
   state.sessionWrongCount = 0;
   state.submittedCurrent = false;
   state.mode = "practice";
+  state.practiceAnswers = new Map();
   state.practiceSubmissions = new Map();
   state.examAnswers = new Map();
   state.examSubmitted = false;
@@ -334,10 +337,37 @@ function resetSession() {
   updateStats();
 }
 
+function savePracticeState() {
+  if (!state.currentSubject || state.mode !== "practice") {
+    return;
+  }
+  state.practiceStates.set(state.currentSubject.id, {
+    score: state.score,
+    answered: state.answered,
+    sessionWrongCount: state.sessionWrongCount,
+    practiceAnswers: new Map(state.practiceAnswers),
+    practiceSubmissions: new Map(state.practiceSubmissions),
+  });
+}
+
+function restorePracticeState(subject) {
+  const saved = state.practiceStates.get(subject.id);
+  if (!saved) {
+    return;
+  }
+  state.score = saved.score;
+  state.answered = saved.answered;
+  state.sessionWrongCount = saved.sessionWrongCount;
+  state.practiceAnswers = new Map(saved.practiceAnswers);
+  state.practiceSubmissions = new Map(saved.practiceSubmissions);
+  updateStats();
+}
+
 async function loadBank(subject) {
   showView("question");
   resetSession();
   state.currentSubject = subject;
+  restorePracticeState(subject);
   state.wrongQuestions = loadWrongBook();
   dom.appTitle.textContent = `${subject.name}题库自测`;
   dom.currentSubjectText.textContent = subject.name;
@@ -360,6 +390,7 @@ async function loadBank(subject) {
 }
 
 function applyFilters() {
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   state.mode = "practice";
   state.examAnswers = new Map();
@@ -537,6 +568,7 @@ function renderAnswerInput(question) {
 
   if (isChoiceType(type)) {
     const practiceSubmission = state.mode === "practice" ? getPracticeSubmission(question) : null;
+    const practiceAnswer = state.mode === "practice" ? getPracticeAnswer(question) : "";
     (field(question, "选项") || []).forEach((optionText) => {
       const label = document.createElement("label");
       label.className = "option-item";
@@ -547,6 +579,12 @@ function renderAnswerInput(question) {
       input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
       if (practiceSubmission && practiceSubmission.userAnswer === input.value) {
         input.checked = true;
+      }
+      if (!practiceSubmission && practiceAnswer === input.value) {
+        input.checked = true;
+      }
+      if (state.mode === "practice" && !practiceSubmission) {
+        input.addEventListener("change", saveCurrentPracticeAnswer);
       }
       if (state.mode === "exam" && getExamAnswer(question) === input.value) {
         input.checked = true;
@@ -580,6 +618,9 @@ function renderAnswerInput(question) {
     input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
     if (practiceSubmission) {
       input.value = practiceSubmission.userAnswer;
+    } else if (state.mode === "practice") {
+      input.value = getPracticeAnswer(question);
+      input.addEventListener("input", saveCurrentPracticeAnswer);
     }
     if (state.mode === "exam") {
       input.value = getExamAnswer(question);
@@ -594,6 +635,9 @@ function renderAnswerInput(question) {
     textarea.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
     if (practiceSubmission) {
       textarea.value = practiceSubmission.userAnswer;
+    } else if (state.mode === "practice") {
+      textarea.value = getPracticeAnswer(question);
+      textarea.addEventListener("input", saveCurrentPracticeAnswer);
     }
     if (state.mode === "exam") {
       textarea.value = getExamAnswer(question);
@@ -613,6 +657,21 @@ function questionKey(question) {
 
 function getPracticeSubmission(question) {
   return state.practiceSubmissions.get(questionKey(question)) || null;
+}
+
+function getPracticeAnswer(question) {
+  return state.practiceAnswers.get(questionKey(question)) || "";
+}
+
+function saveCurrentPracticeAnswer() {
+  if (state.mode !== "practice") {
+    return;
+  }
+  const question = currentQuestion();
+  if (!question || getPracticeSubmission(question)) {
+    return;
+  }
+  state.practiceAnswers.set(questionKey(question), getUserAnswer(question).trim());
 }
 
 function getExamAnswer(question) {
@@ -637,6 +696,19 @@ function getUserAnswer(question) {
   }
   const input = document.getElementById("answerInput");
   return input ? input.value : "";
+}
+
+function lockCurrentAnswerInput(question) {
+  if (isChoiceType(field(question, "题型"))) {
+    document.querySelectorAll("input[name='choice']").forEach((input) => {
+      input.disabled = true;
+    });
+    return;
+  }
+  const input = document.getElementById("answerInput");
+  if (input) {
+    input.disabled = true;
+  }
 }
 
 function normalizeFill(value) {
@@ -780,8 +852,10 @@ function submitAnswer() {
     state.sessionWrongCount += 1;
   }
   state.submittedCurrent = true;
+  state.practiceAnswers.set(questionKey(question), userAnswer);
   state.practiceSubmissions.set(questionKey(question), { userAnswer, result });
   dom.submitBtn.disabled = true;
+  lockCurrentAnswerInput(question);
   updateStats();
   showResult(question, result);
 
@@ -829,6 +903,7 @@ function showPrevious() {
   if (!state.filteredQuestions.length) {
     return;
   }
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   const previousIndex = (state.currentIndex - 1 + state.filteredQuestions.length) % state.filteredQuestions.length;
   showQuestion(previousIndex);
@@ -838,12 +913,14 @@ function showNext() {
   if (!state.filteredQuestions.length) {
     return;
   }
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   const nextIndex = (state.currentIndex + 1) % state.filteredQuestions.length;
   showQuestion(nextIndex);
 }
 
 function showRandom() {
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   if (state.mode !== "exam") {
     state.filteredQuestions = getFilteredQuestions();
@@ -857,9 +934,14 @@ function showRandom() {
 }
 
 function resetCurrentPool() {
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   if (state.mode === "practice") {
+    state.practiceAnswers = new Map();
     state.practiceSubmissions = new Map();
+    if (state.currentSubject) {
+      state.practiceStates.delete(state.currentSubject.id);
+    }
     state.score = 0;
     state.answered = 0;
     state.sessionWrongCount = 0;
@@ -872,6 +954,7 @@ function resetCurrentPool() {
 }
 
 function jumpToQuestion() {
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   const input = dom.questionJumpInput.value.trim();
   if (!input) {
@@ -1250,9 +1333,10 @@ function clearWrongBook() {
 }
 
 function returnToMenu() {
+  saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
   saveSubjectSession();
-  state.practiceSubmissions = new Map();
+  savePracticeState();
   renderMenu();
 }
 
