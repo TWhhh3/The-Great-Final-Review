@@ -203,6 +203,15 @@ function fillSelect(select, values, allLabel) {
   });
 }
 
+function chapterNumber(value) {
+  const match = String(value).match(/第\s*(\d+)\s*章/);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+function sortChaptersByNumber(chapters) {
+  return [...chapters].sort((a, b) => chapterNumber(a) - chapterNumber(b) || String(a).localeCompare(String(b), "zh-CN"));
+}
+
 function flattenBank(bank) {
   if (Array.isArray(bank)) {
     return bank;
@@ -274,7 +283,8 @@ function updatePracticeSourceControls() {
 
 function refreshPracticeFilters() {
   const questions = practiceQuestions();
-  fillSelect(dom.chapterFilter, uniqueValues(questions, (q) => field(q, "章节")), "全部章节");
+  const chapters = uniqueValues(questions, (q) => field(q, "章节"));
+  fillSelect(dom.chapterFilter, state.practiceSource === "past" ? sortChaptersByNumber(chapters) : chapters, "全部章节");
   fillSelect(dom.typeFilter, uniqueValues(questions, (q) => field(q, "题型")), "全部题型");
   fillSelect(dom.difficultyFilter, uniqueValues(questions, (q) => field(q, "难度")), "全部难度");
   updatePracticeSourceControls();
