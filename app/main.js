@@ -19,6 +19,17 @@ const dom = {
   examQuestionNav: document.getElementById("examQuestionNav"),
   backToMenuBtn: document.getElementById("backToMenuBtn"),
   currentSubjectText: document.getElementById("currentSubjectText"),
+  courseMaterialsBtn: document.getElementById("courseMaterialsBtn"),
+  materialsView: document.getElementById("materialsView"),
+  materialsHome: document.getElementById("materialsHome"),
+  materialsListPage: document.getElementById("materialsListPage"),
+  materialsBackBtn: document.getElementById("materialsBackBtn"),
+  materialsCategoryBackBtn: document.getElementById("materialsCategoryBackBtn"),
+  materialsSubjectTitle: document.getElementById("materialsSubjectTitle"),
+  pptMaterialsBtn: document.getElementById("pptMaterialsBtn"),
+  paperMaterialsBtn: document.getElementById("paperMaterialsBtn"),
+  materialsCategoryTitle: document.getElementById("materialsCategoryTitle"),
+  materialsFileList: document.getElementById("materialsFileList"),
   practiceMockBtn: document.getElementById("practiceMockBtn"),
   practicePastBtn: document.getElementById("practicePastBtn"),
   chapterFilter: document.getElementById("chapterFilter"),
@@ -331,6 +342,7 @@ function showView(viewName) {
   dom.menuView.classList.toggle("hidden", viewName !== "menu");
   dom.questionView.classList.toggle("hidden", viewName !== "question");
   dom.placeholderView.classList.toggle("hidden", viewName !== "placeholder");
+  dom.materialsView.classList.toggle("hidden", viewName !== "materials");
   dom.scoreboard.classList.toggle("hidden", viewName !== "question");
   updateExamLayout();
 }
@@ -423,6 +435,69 @@ function showPlaceholder(subject) {
   dom.appTitle.textContent = subject.name;
   dom.loadStatus.textContent = "尚未添加题库";
   dom.placeholderSubject.textContent = subject.name;
+}
+
+function showMaterialsHome() {
+  if (!state.currentSubject) {
+    return;
+  }
+  showView("materials");
+  dom.materialsHome.classList.remove("hidden");
+  dom.materialsListPage.classList.add("hidden");
+  dom.appTitle.textContent = "课程资料";
+  dom.loadStatus.textContent = state.currentSubject.name;
+  dom.materialsSubjectTitle.textContent = state.currentSubject.name;
+}
+
+function returnFromMaterials() {
+  if (state.currentSubject) {
+    showView("question");
+    dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
+    dom.loadStatus.textContent = `已加载${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
+  } else {
+    renderMenu();
+  }
+}
+
+async function showMaterialsCategory(category, title) {
+  if (!state.currentSubject) {
+    return;
+  }
+  showView("materials");
+  dom.materialsHome.classList.add("hidden");
+  dom.materialsListPage.classList.remove("hidden");
+  dom.materialsCategoryTitle.textContent = title;
+  dom.materialsFileList.textContent = "正在加载...";
+
+  if (!window.courseApi || typeof window.courseApi.listMaterialFiles !== "function") {
+    dom.materialsFileList.textContent = "当前运行环境不支持打开课程资料。请通过 Electron 桌面端启动。";
+    return;
+  }
+
+  const result = await window.courseApi.listMaterialFiles(state.currentSubject.id, category);
+  if (!result.ok) {
+    dom.materialsFileList.textContent = `未找到资料文件：${result.error}`;
+    return;
+  }
+  if (!result.files.length) {
+    dom.materialsFileList.textContent = "该分类下暂无文件。";
+    return;
+  }
+
+  dom.materialsFileList.innerHTML = "";
+  result.files.forEach((fileName) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "material-file-item";
+    button.textContent = fileName;
+    button.addEventListener("click", async () => {
+      const openResult = await window.courseApi.openMaterialFile(state.currentSubject.id, category, fileName);
+      if (!openResult.ok) {
+        alert(`打开文件失败：${openResult.error}`);
+      }
+    });
+    dom.materialsFileList.appendChild(button);
+  });
 }
 
 function resetSession() {
@@ -2056,6 +2131,11 @@ dom.clearWrongBtn.addEventListener("click", clearWrongBook);
 dom.clearPastWrongBtn.addEventListener("click", clearPastWrongBook);
 dom.backToMenuBtn.addEventListener("click", returnToMenu);
 dom.placeholderBackBtn.addEventListener("click", renderMenu);
+dom.courseMaterialsBtn.addEventListener("click", showMaterialsHome);
+dom.materialsBackBtn.addEventListener("click", returnFromMaterials);
+dom.materialsCategoryBackBtn.addEventListener("click", showMaterialsHome);
+dom.pptMaterialsBtn.addEventListener("click", () => showMaterialsCategory("ppt", "上课PPT"));
+dom.paperMaterialsBtn.addEventListener("click", () => showMaterialsCategory("papers", "试卷原卷"));
 
 renderMenu().catch((error) => {
   dom.loadStatus.textContent = error.message;

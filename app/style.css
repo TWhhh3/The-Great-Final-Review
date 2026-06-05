@@ -208,6 +208,14 @@ body {
   font-size: 18px;
 }
 
+.materials-entry-btn {
+  width: 100%;
+  margin-top: 14px;
+  background: #eef4f8;
+  border-color: #c8d8e5;
+  color: var(--brand-dark);
+}
+
 .back-btn {
   background: #eef4f8;
   border-color: #c8d8e5;
@@ -451,6 +459,41 @@ button:disabled {
 
 .wrong-item p {
   margin: 8px 0;
+}
+
+.materials-view {
+  width: min(1100px, calc(100% - 32px));
+  margin: 28px auto 40px;
+}
+
+.materials-panel {
+  padding: 28px;
+}
+
+.materials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.material-card {
+  min-height: 170px;
+}
+
+.materials-file-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--muted);
+}
+
+.material-file-item {
+  min-height: 46px;
+  justify-content: flex-start;
+  padding: 0 14px;
+  text-align: left;
+  background: #fbfcfe;
 }
 
 .question-panel {

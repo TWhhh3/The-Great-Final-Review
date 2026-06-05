@@ -44,6 +44,7 @@
         <button id="backToMenuBtn" class="back-btn" type="button">返回主菜单</button>
         <p>当前科目</p>
         <strong id="currentSubjectText">-</strong>
+        <button id="courseMaterialsBtn" class="materials-entry-btn" type="button">课程资料</button>
       </section>
 
       <section class="panel controls" aria-label="筛选区">
@@ -188,6 +189,45 @@
           <button id="clearPastWrongBtn" type="button">清空</button>
         </div>
         <div id="pastWrongList" class="wrong-list">暂无真题错题</div>
+      </section>
+    </section>
+  </main>
+
+  <main id="materialsView" class="materials-view hidden">
+    <section id="materialsHome" class="materials-page">
+      <section class="panel materials-panel">
+        <button id="materialsBackBtn" class="back-btn" type="button">返回题库</button>
+        <p class="placeholder-subject">课程资料</p>
+        <h2 id="materialsSubjectTitle">-</h2>
+        <div class="materials-grid" aria-label="课程资料分类">
+          <button id="pptMaterialsBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>上课PPT</h3>
+              <p>查看 materials 中的上课 PPT 文件</p>
+            </span>
+            <span class="subject-status ready">可打开</span>
+          </button>
+          <button id="paperMaterialsBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>试卷原卷</h3>
+              <p>查看 materials 中的试卷原卷文件</p>
+            </span>
+            <span class="subject-status ready">可打开</span>
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section id="materialsListPage" class="materials-page hidden">
+      <section class="panel materials-panel">
+        <div class="section-head">
+          <div>
+            <button id="materialsCategoryBackBtn" class="back-btn" type="button">返回课程资料</button>
+            <p class="placeholder-subject">课程资料</p>
+            <h2 id="materialsCategoryTitle">-</h2>
+          </div>
+        </div>
+        <div id="materialsFileList" class="materials-file-list">正在加载...</div>
       </section>
     </section>
   </main>
