@@ -23,6 +23,8 @@ const dom = {
   practicePastBtn: document.getElementById("practicePastBtn"),
   chapterFilter: document.getElementById("chapterFilter"),
   typeFilter: document.getElementById("typeFilter"),
+  questionSourceField: document.getElementById("questionSourceField"),
+  questionSourceFilter: document.getElementById("questionSourceFilter"),
   difficultyField: document.getElementById("difficultyField"),
   difficultyFilter: document.getElementById("difficultyFilter"),
   applyFilterBtn: document.getElementById("applyFilterBtn"),
@@ -55,6 +57,7 @@ const dom = {
   chapterText: document.getElementById("chapterText"),
   typeText: document.getElementById("typeText"),
   difficultyText: document.getElementById("difficultyText"),
+  questionSourceText: document.getElementById("questionSourceText"),
   questionStem: document.getElementById("questionStem"),
   optionsBox: document.getElementById("optionsBox"),
   answerBox: document.getElementById("answerBox"),
@@ -138,6 +141,7 @@ const state = {
   pastWrongPracticeAnswers: new Map(),
   pastWrongPracticeSubmissions: new Map(),
   examAnswers: new Map(),
+  examResults: new Map(),
   pastExamQuestions: [],
   examSubmitted: false,
   timerId: null,
@@ -275,9 +279,12 @@ function updatePracticeSourceControls() {
   const isPast = state.practiceSource === "past";
   dom.practiceMockBtn.classList.toggle("active", !isPast);
   dom.practicePastBtn.classList.toggle("active", isPast);
+  dom.questionSourceField.classList.toggle("hidden", !isPast);
   dom.difficultyField.classList.toggle("hidden", isPast);
   if (isPast) {
     dom.difficultyFilter.value = "";
+  } else {
+    dom.questionSourceFilter.value = "";
   }
 }
 
@@ -286,6 +293,7 @@ function refreshPracticeFilters() {
   const chapters = uniqueValues(questions, (q) => field(q, "章节"));
   fillSelect(dom.chapterFilter, state.practiceSource === "past" ? sortChaptersByNumber(chapters) : chapters, "全部章节");
   fillSelect(dom.typeFilter, uniqueValues(questions, (q) => field(q, "题型")), "全部题型");
+  fillSelect(dom.questionSourceFilter, uniqueValues(questions, (q) => field(q, "题目来源")), "全部来源");
   fillSelect(dom.difficultyFilter, uniqueValues(questions, (q) => field(q, "难度")), "全部难度");
   updatePracticeSourceControls();
 }
@@ -431,6 +439,7 @@ function resetSession() {
   state.pastWrongPracticeAnswers = new Map();
   state.pastWrongPracticeSubmissions = new Map();
   state.examAnswers = new Map();
+  state.examResults = new Map();
   state.examSubmitted = false;
   stopTimer();
   updateStats();
@@ -504,11 +513,13 @@ function applyFilters() {
 function getFilteredQuestions() {
   const chapter = dom.chapterFilter.value;
   const type = dom.typeFilter.value;
+  const questionSource = state.practiceSource === "past" ? dom.questionSourceFilter.value : "";
   const difficulty = state.practiceSource === "past" ? "" : dom.difficultyFilter.value;
 
   return practiceQuestions().filter((question) => {
     return (!chapter || field(question, "章节") === chapter)
       && (!type || field(question, "题型") === type)
+      && (!questionSource || field(question, "题目来源") === questionSource)
       && (!difficulty || field(question, "难度") === difficulty);
   });
 }
@@ -547,6 +558,7 @@ async function switchPracticeSource(source, session = null, keepCombinedStatus =
   if (session) {
     setSelectValueIfExists(dom.chapterFilter, session.chapter);
     setSelectValueIfExists(dom.typeFilter, session.type);
+    setSelectValueIfExists(dom.questionSourceFilter, session.questionSource);
     setSelectValueIfExists(dom.difficultyFilter, session.difficulty);
   }
   state.filteredQuestions = getFilteredQuestions();
@@ -575,6 +587,7 @@ function saveSubjectSession() {
     practiceSource: state.practiceSource,
     chapter: dom.chapterFilter.value,
     type: dom.typeFilter.value,
+    questionSource: state.practiceSource === "past" ? dom.questionSourceFilter.value : "",
     difficulty: state.practiceSource === "past" ? "" : dom.difficultyFilter.value,
     questionId: question ? field(question, "编号") : "",
     index: state.currentIndex,
@@ -688,6 +701,8 @@ function showQuestion(index) {
     dom.chapterText.textContent = "-";
     dom.typeText.textContent = "-";
     dom.difficultyText.textContent = "-";
+    dom.questionSourceText.textContent = "-";
+    dom.questionSourceText.classList.add("hidden");
     syncQuestionJumpInput("");
     dom.questionStem.textContent = "没有符合条件的题目";
     dom.optionsBox.innerHTML = "";
@@ -705,7 +720,12 @@ function showQuestion(index) {
   syncQuestionJumpInput(state.mode === "exam" ? String(question["考试编号"] || safeIndex + 1) : field(question, "编号"));
   dom.chapterText.textContent = field(question, "章节");
   dom.typeText.textContent = field(question, "题型");
-  dom.difficultyText.textContent = field(question, "难度");
+  const difficulty = field(question, "难度");
+  dom.difficultyText.textContent = difficulty;
+  dom.difficultyText.classList.toggle("hidden", !difficulty);
+  const questionSource = field(question, "题目来源");
+  dom.questionSourceText.textContent = questionSource ? `来源：${questionSource}` : "-";
+  dom.questionSourceText.classList.toggle("hidden", !questionSource);
   renderQuestionStem(field(question, "题干"));
   renderAnswerInput(question);
   renderExamQuestionNav();
@@ -714,6 +734,12 @@ function showQuestion(index) {
     state.submittedCurrent = true;
     dom.submitBtn.disabled = true;
     showResult(question, submission.result);
+  }
+  if (state.mode === "exam" && state.examSubmitted) {
+    const examRecord = getExamResult(question);
+    if (examRecord) {
+      showExamQuestionResult(question, examRecord);
+    }
   }
   saveSubjectSession();
 }
@@ -809,7 +835,7 @@ function renderAnswerInput(question) {
     }
     if (state.mode === "exam") {
       input.value = getExamAnswer(question);
-      input.addEventListener("input", saveCurrentExamAnswer);
+      input.addEventListener("input", () => saveCurrentExamAnswer(false));
     }
     dom.answerBox.appendChild(input);
   } else {
@@ -826,7 +852,7 @@ function renderAnswerInput(question) {
     }
     if (state.mode === "exam") {
       textarea.value = getExamAnswer(question);
-      textarea.addEventListener("input", saveCurrentExamAnswer);
+      textarea.addEventListener("input", () => saveCurrentExamAnswer(false));
     }
     dom.answerBox.appendChild(textarea);
   }
@@ -879,7 +905,11 @@ function getExamAnswer(question) {
   return state.examAnswers.get(questionKey(question)) || "";
 }
 
-function saveCurrentExamAnswer() {
+function getExamResult(question) {
+  return state.examResults.get(questionKey(question)) || null;
+}
+
+function saveCurrentExamAnswer(updateNav = true) {
   if (state.mode !== "exam" || state.examSubmitted) {
     return;
   }
@@ -888,7 +918,32 @@ function saveCurrentExamAnswer() {
     return;
   }
   state.examAnswers.set(questionKey(question), getUserAnswer(question).trim());
-  renderExamQuestionNav();
+  if (updateNav) {
+    renderExamQuestionNav();
+  } else {
+    updateCurrentExamNavButton();
+  }
+}
+
+function updateCurrentExamNavButton() {
+  if (state.mode !== "exam" || !dom.examQuestionNav) {
+    return;
+  }
+  const question = currentQuestion();
+  const number = question ? String(question["考试编号"] || state.currentIndex + 1) : "";
+  const button = [...dom.examQuestionNav.querySelectorAll("button")]
+    .find((item) => item.textContent === number);
+  if (button && !state.examSubmitted) {
+    button.classList.toggle("answered", Boolean(question && getExamAnswer(question)));
+  }
+}
+
+function questionMaxScore(question) {
+  const type = field(question, "题型");
+  if (isMultipleChoiceType(type)) {
+    return Math.max(1, parseChoiceLetters(field(question, "答案")).length);
+  }
+  return 1;
 }
 
 function getUserAnswer(question) {
@@ -1125,8 +1180,17 @@ function showResult(question, result) {
   dom.resultText.textContent = result.text;
   dom.referenceAnswer.textContent = field(question, "答案");
   dom.explanationText.textContent = field(question, "解析");
-  dom.sourceText.textContent = field(question, "知识点来源");
+  dom.sourceText.textContent = [
+    field(question, "知识点来源") ? `知识点来源：${field(question, "知识点来源")}` : "",
+    field(question, "题目来源") ? `题目来源：${field(question, "题目来源")}` : "",
+  ].filter(Boolean).join("\n") || "无";
   dom.selfReviewTip.textContent = result.tip;
+}
+
+function showExamQuestionResult(question, record) {
+  showResult(question, record.result);
+  dom.resultTitle.textContent = `第 ${question["考试编号"] || state.currentIndex + 1} 题｜${record.result.title}`;
+  dom.resultText.textContent = `${record.result.text}；本题得分 ${record.result.score.toFixed(2)} / ${questionMaxScore(question).toFixed(2)} 分。`;
 }
 
 function updateStats() {
@@ -1312,7 +1376,16 @@ function renderExamQuestionNav() {
       button.type = "button";
       button.textContent = String(question["考试编号"] || index + 1);
       button.classList.toggle("current", index === state.currentIndex);
-      button.classList.toggle("answered", Boolean(getExamAnswer(question)));
+      button.classList.toggle("answered", !state.examSubmitted && Boolean(getExamAnswer(question)));
+      if (state.examSubmitted) {
+        const record = getExamResult(question);
+        if (record) {
+          const maxScore = questionMaxScore(question);
+          button.classList.toggle("score-full", record.result.score >= maxScore);
+          button.classList.toggle("score-zero", record.result.score <= 0);
+          button.classList.toggle("score-partial", record.result.score > 0 && record.result.score < maxScore);
+        }
+      }
       button.addEventListener("click", () => {
         saveCurrentExamAnswer();
         showQuestion(index);
@@ -1494,6 +1567,7 @@ async function startExam(source = "mock") {
   state.sessionWrongCount = 0;
   state.submittedCurrent = false;
   state.examAnswers = new Map();
+  state.examResults = new Map();
   state.examSubmitted = false;
   updateStats();
 
@@ -1522,6 +1596,7 @@ function exitExam() {
   state.answered = 0;
   state.sessionWrongCount = 0;
   state.examAnswers = new Map();
+  state.examResults = new Map();
   state.pastExamQuestions = [];
   state.examSubmitted = false;
   stopTimer();
@@ -1549,13 +1624,10 @@ function submitExamPaper(confirmSubmission = true) {
   let totalScore = 0;
   let answeredCount = 0;
   let wrongCount = 0;
-  const lines = [];
-  const wrongLines = [];
+  state.examResults = new Map();
 
   state.filteredQuestions.forEach((question, index) => {
     const userAnswer = getExamAnswer(question);
-    const examLabel = `第 ${question["考试编号"] || index + 1} 题`;
-    const sourceId = field(question, "编号");
     const result = userAnswer ? evaluate(question, userAnswer) : {
       score: 0,
       correct: false,
@@ -1564,6 +1636,7 @@ function submitExamPaper(confirmSubmission = true) {
       className: "bad",
       tip: "",
     };
+    state.examResults.set(questionKey(question), { userAnswer, result });
     totalScore += result.score;
     if (userAnswer) {
       answeredCount += 1;
@@ -1575,15 +1648,7 @@ function submitExamPaper(confirmSubmission = true) {
       } else {
         addWrongQuestion(question, userAnswer, false);
       }
-      wrongLines.push(`${examLabel}｜原题号 ${sourceId}｜${field(question, "题型")}｜你的答案：${userAnswer || "未填写"}｜参考答案：${field(question, "答案")}｜得分 ${result.score.toFixed(2)}`);
     }
-    lines.push([
-      `${examLabel}｜原题号 ${sourceId}｜${field(question, "题型")}｜${result.correct ? "正确" : "需复核/错误"}｜${result.score.toFixed(2)} 分`,
-      `你的答案：${userAnswer || "未填写"}`,
-      `参考答案：${field(question, "答案")}`,
-      `解析：${field(question, "解析") || "无"}`,
-      `知识点来源：${field(question, "知识点来源") || "无"}`,
-    ].join("\n"));
   });
 
   state.score = Number(totalScore.toFixed(2));
@@ -1594,9 +1659,8 @@ function submitExamPaper(confirmSubmission = true) {
   updateStats();
   renderWrongBook();
   renderPastWrongBook();
-  showExamResult(lines, wrongLines, answeredCount);
+  dom.loadStatus.textContent = `已提交 ${state.filteredQuestions.length} 道题，作答 ${answeredCount} 道，错题/需复核 ${wrongCount} 道。`;
   showQuestion(state.currentIndex);
-  dom.resultPanel.classList.remove("hidden");
 }
 
 function showExamResult(lines, wrongLines, answeredCount) {
@@ -1699,6 +1763,7 @@ function makeWrongRecord(question, userAnswer = "") {
     答案: field(question, "答案"),
     解析: field(question, "解析"),
     知识点来源: field(question, "知识点来源"),
+    题目来源: field(question, "题目来源"),
     year: field(question, "year"),
     source_type: field(question, "source_type"),
     source: field(question, "source"),
@@ -1826,8 +1891,9 @@ function renderWrongBookList(items, listDom, emptyText, practiceHandler, removeH
       `参考答案：${item.答案}`,
       `解析：${item.解析}`,
       `知识点来源：${item.知识点来源 || "无"}`,
+      item.题目来源 ? `题目来源：${item.题目来源}` : "",
       ...sourceLines,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     details.appendChild(answer);
 
     const actions = document.createElement("div");

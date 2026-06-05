@@ -37,7 +37,7 @@ def parse_block(qid: str, body: str) -> dict:
 
     for raw_line in body.splitlines():
         line = raw_line.rstrip()
-        field_match = re.match(r"^- (编号|章节|题型|题干|选项|答案|解析|年份|来源)：(.*)$", line)
+        field_match = re.match(r"^- (编号|章节|题型|题干|选项|答案|解析|年份|题目来源|来源)：(.*)$", line)
         option_match = re.match(r"^\s*-\s*([A-Z])\.\s*(.*)$", line)
 
         if field_match:
@@ -68,6 +68,7 @@ def parse_block(qid: str, body: str) -> dict:
 
     answer = fields.get("答案", "").strip()
     explanation = fields.get("解析", "").strip() or "原始真题中未提供解析"
+    question_source = fields.get("题目来源", fields.get("来源", "")).strip()
 
     return {
         "编号": fields.get("编号", qid).strip() or qid,
@@ -78,9 +79,10 @@ def parse_block(qid: str, body: str) -> dict:
         "答案": answer,
         "解析": explanation,
         "知识点来源": "materials/往年真题.md",
+        "题目来源": question_source,
         "year": fields.get("年份", "").strip(),
         "source_type": "past_exam",
-        "source": fields.get("来源", "materials/往年真题.md").strip() or "materials/往年真题.md",
+        "source": question_source or fields.get("来源", "materials/往年真题.md").strip() or "materials/往年真题.md",
     }
 
 

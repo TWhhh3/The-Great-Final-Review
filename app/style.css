@@ -472,6 +472,8 @@ button:disabled {
 .layout.exam-layout .exam-nav-row,
 .layout.exam-layout .result-panel {
   grid-column: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .exam-toolbar {
@@ -517,6 +519,7 @@ button:disabled {
   align-self: start;
   position: sticky;
   top: 18px;
+  z-index: 0;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -557,10 +560,52 @@ button:disabled {
   color: var(--brand-dark);
 }
 
+.exam-nav-buttons button.score-full {
+  background: #e8f5ee;
+  border-color: #2e9e62;
+  color: #11683c;
+}
+
+.exam-nav-buttons button.score-zero {
+  background: #fdecec;
+  border-color: #d92d20;
+  color: #9f1f17;
+}
+
+.exam-nav-buttons button.score-partial {
+  background: #fff6df;
+  border-color: #d99a16;
+  color: #7a4b00;
+}
+
 .exam-nav-buttons button.current {
   background: var(--brand);
   border-color: var(--brand);
   color: #fff;
+}
+
+.exam-nav-buttons button.current.score-full,
+.exam-nav-buttons button.current.score-zero,
+.exam-nav-buttons button.current.score-partial {
+  box-shadow: 0 0 0 2px rgba(18, 50, 74, 0.28);
+}
+
+.exam-nav-buttons button.current.score-full {
+  background: #d8f0e3;
+  border-color: #11683c;
+  color: #0b4f2d;
+}
+
+.exam-nav-buttons button.current.score-zero {
+  background: #fbd7d7;
+  border-color: #9f1f17;
+  color: #7a1812;
+}
+
+.exam-nav-buttons button.current.score-partial {
+  background: #ffe9ad;
+  border-color: #9a6500;
+  color: #5f3b00;
 }
 
 .question-meta {
