@@ -56,6 +56,16 @@ const dom = {
   timerText: document.getElementById("timerText"),
   startExamBtn: document.getElementById("startExamBtn"),
   startPastExamBtn: document.getElementById("startPastExamBtn"),
+  examHistoryBtn: document.getElementById("examHistoryBtn"),
+  examHistoryView: document.getElementById("examHistoryView"),
+  examHistoryHome: document.getElementById("examHistoryHome"),
+  examHistoryListPage: document.getElementById("examHistoryListPage"),
+  examHistoryBackBtn: document.getElementById("examHistoryBackBtn"),
+  examHistoryListBackBtn: document.getElementById("examHistoryListBackBtn"),
+  mockExamHistoryBtn: document.getElementById("mockExamHistoryBtn"),
+  pastExamHistoryBtn: document.getElementById("pastExamHistoryBtn"),
+  examHistoryListTitle: document.getElementById("examHistoryListTitle"),
+  examHistoryList: document.getElementById("examHistoryList"),
   submitExamBtn: document.getElementById("submitExamBtn"),
   exitExamBtn: document.getElementById("exitExamBtn"),
   clearWrongBtn: document.getElementById("clearWrongBtn"),
@@ -159,6 +169,9 @@ const state = {
   examResults: new Map(),
   pastExamQuestions: [],
   examSubmitted: false,
+  examStartedAt: null,
+  viewingExamHistory: false,
+  examHistorySource: "",
   timerId: null,
   examEndTime: null,
 };
@@ -342,6 +355,7 @@ function showView(viewName) {
   dom.menuView.classList.toggle("hidden", viewName !== "menu");
   dom.questionView.classList.toggle("hidden", viewName !== "question");
   dom.placeholderView.classList.toggle("hidden", viewName !== "placeholder");
+  dom.examHistoryView.classList.toggle("hidden", viewName !== "examHistory");
   dom.materialsView.classList.toggle("hidden", viewName !== "materials");
   dom.scoreboard.classList.toggle("hidden", viewName !== "question");
   updateExamLayout();
@@ -500,6 +514,185 @@ async function showMaterialsCategory(category, title) {
   });
 }
 
+function examHistoryKey(source) {
+  const subjectId = state.currentSubject ? state.currentSubject.id : "unknown";
+  return `examHistory:${subjectId}:${source}`;
+}
+
+function examHistoryTitle(source) {
+  return source === "past" ? "真题考试记录" : "模拟考试记录";
+}
+
+function loadExamHistory(source) {
+  try {
+    const records = JSON.parse(localStorage.getItem(examHistoryKey(source)) || "[]");
+    return Array.isArray(records) ? records : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveExamHistory(source, records) {
+  localStorage.setItem(examHistoryKey(source), JSON.stringify(records.slice(0, 5)));
+}
+
+function saveExamHistoryRecord(answeredCount, wrongCount) {
+  const source = state.examSource;
+  const record = {
+    id: Date.now(),
+    source,
+    title: currentExamTitle(),
+    startedAt: state.examStartedAt || new Date().toISOString(),
+    submittedAt: new Date().toISOString(),
+    questionCount: state.filteredQuestions.length,
+    answeredCount,
+    wrongCount,
+    score: state.score,
+    questions: state.filteredQuestions,
+    answers: [...state.examAnswers.entries()],
+    results: [...state.examResults.entries()],
+  };
+  saveExamHistory(source, [record, ...loadExamHistory(source)]);
+}
+
+function deleteExamHistoryRecord(source, index) {
+  const records = loadExamHistory(source);
+  if (!records[index]) {
+    return;
+  }
+  if (!confirm("确认删除这条考试记录吗？")) {
+    return;
+  }
+  records.splice(index, 1);
+  saveExamHistory(source, records);
+  showExamHistoryList(source);
+}
+
+function formatExamHistoryTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "时间未知";
+  }
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function showExamHistoryHome() {
+  if (!state.currentSubject) {
+    return;
+  }
+  showView("examHistory");
+  dom.examHistoryHome.classList.remove("hidden");
+  dom.examHistoryListPage.classList.add("hidden");
+  dom.appTitle.textContent = "考试历史记录";
+  dom.loadStatus.textContent = state.currentSubject.name;
+}
+
+function returnFromExamHistory() {
+  if (state.currentSubject) {
+    showView("question");
+    dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
+    dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
+    showQuestion(state.currentIndex);
+  } else {
+    renderMenu();
+  }
+}
+
+function showExamHistoryList(source) {
+  showView("examHistory");
+  dom.examHistoryHome.classList.add("hidden");
+  dom.examHistoryListPage.classList.remove("hidden");
+  dom.examHistoryListTitle.textContent = examHistoryTitle(source);
+  dom.examHistoryList.innerHTML = "";
+
+  const records = loadExamHistory(source);
+  for (let index = 0; index < 5; index += 1) {
+    const record = records[index];
+    const row = document.createElement("div");
+    row.className = "exam-history-row";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "exam-history-item";
+    if (record) {
+      button.textContent = `${formatExamHistoryTime(record.startedAt)}｜${record.questionCount} 题｜错题 ${record.wrongCount}｜得分 ${Number(record.score || 0).toFixed(2)}`;
+      button.addEventListener("click", () => openExamHistoryRecord(source, index));
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "exam-history-delete";
+      deleteButton.textContent = "删除";
+      deleteButton.addEventListener("click", () => deleteExamHistoryRecord(source, index));
+      row.appendChild(button);
+      row.appendChild(deleteButton);
+    } else {
+      button.textContent = `第 ${index + 1} 条：暂无记录`;
+      button.disabled = true;
+      row.appendChild(button);
+    }
+    dom.examHistoryList.appendChild(row);
+  }
+}
+
+function openExamHistoryRecord(source, index) {
+  const record = loadExamHistory(source)[index];
+  if (!record) {
+    return;
+  }
+  stopTimer();
+  state.mode = "exam";
+  state.examSource = record.source || source;
+  state.filteredQuestions = record.questions || [];
+  state.currentIndex = 0;
+  state.score = Number(record.score || 0);
+  state.answered = Number(record.questionCount || state.filteredQuestions.length);
+  state.sessionWrongCount = Number(record.wrongCount || 0);
+  state.examAnswers = new Map(record.answers || []);
+  state.examResults = new Map(record.results || []);
+  state.examSubmitted = true;
+  state.examStartedAt = record.startedAt || null;
+  state.viewingExamHistory = true;
+  state.examHistorySource = source;
+  state.wrongQuestions = loadWrongBook();
+  state.pastWrongQuestions = loadPastWrongBook();
+  updateStats();
+  renderWrongBook();
+  renderPastWrongBook();
+  showView("question");
+  dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
+  dom.loadStatus.textContent = `${record.title || currentExamTitle()}历史记录：${formatExamHistoryTime(record.startedAt)}`;
+  showQuestion(0);
+}
+
+function returnToExamHistoryList() {
+  const source = state.examHistorySource || state.examSource || "mock";
+  stopTimer();
+  state.mode = "practice";
+  state.examSource = "mock";
+  state.examAnswers = new Map();
+  state.examResults = new Map();
+  state.examSubmitted = false;
+  state.examStartedAt = null;
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
+  state.filteredQuestions = getFilteredQuestions();
+  state.currentIndex = 0;
+  updateStats();
+  showExamHistoryList(source);
+}
+
+function handleExamExitClick() {
+  if (state.viewingExamHistory) {
+    returnToExamHistoryList();
+    return;
+  }
+  exitExam();
+}
+
 function resetSession() {
   state.allQuestions = [];
   state.pastPracticeQuestions = [];
@@ -520,6 +713,9 @@ function resetSession() {
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
+  state.examStartedAt = null;
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
   stopTimer();
   updateStats();
 }
@@ -583,6 +779,8 @@ function applyFilters() {
   state.mode = "practice";
   state.examAnswers = new Map();
   state.examSubmitted = false;
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
   stopTimer();
   state.filteredQuestions = getFilteredQuestions();
   updatePracticeLoadStatus();
@@ -770,6 +968,8 @@ function showQuestion(index) {
   }
   dom.examSubmitBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
   dom.examExitBtn.disabled = state.mode !== "exam";
+  dom.examSubmitBtn.classList.toggle("hidden", state.viewingExamHistory);
+  dom.examExitBtn.textContent = state.viewingExamHistory ? "返回" : "退出考试";
   dom.submitBtn.textContent = state.mode === "exam" ? "保存答案" : "提交答案";
   dom.showAnswerBtn.disabled = state.mode === "exam" && !state.examSubmitted;
   dom.addWrongBtn.disabled = state.mode === "exam" && !state.examSubmitted;
@@ -1648,6 +1848,9 @@ async function startExam(source = "mock") {
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
+  state.examStartedAt = new Date().toISOString();
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
   updateStats();
 
   if (dom.timerToggle.checked) {
@@ -1678,6 +1881,9 @@ function exitExam() {
   state.examResults = new Map();
   state.pastExamQuestions = [];
   state.examSubmitted = false;
+  state.examStartedAt = null;
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
   stopTimer();
   dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
   state.filteredQuestions = getFilteredQuestions();
@@ -1735,6 +1941,7 @@ function submitExamPaper(confirmSubmission = true) {
   state.answered = state.filteredQuestions.length;
   state.sessionWrongCount = wrongCount;
   state.examSubmitted = true;
+  saveExamHistoryRecord(answeredCount, wrongCount);
   stopTimer();
   updateStats();
   renderWrongBook();
@@ -2131,11 +2338,16 @@ dom.examSubmitBtn.addEventListener("click", () => submitExamPaper());
 if (dom.exitExamBtn) {
   dom.exitExamBtn.addEventListener("click", exitExam);
 }
-dom.examExitBtn.addEventListener("click", exitExam);
+dom.examExitBtn.addEventListener("click", handleExamExitClick);
 dom.clearWrongBtn.addEventListener("click", clearWrongBook);
 dom.clearPastWrongBtn.addEventListener("click", clearPastWrongBook);
 dom.backToMenuBtn.addEventListener("click", returnToMenu);
 dom.placeholderBackBtn.addEventListener("click", renderMenu);
+dom.examHistoryBtn.addEventListener("click", showExamHistoryHome);
+dom.examHistoryBackBtn.addEventListener("click", returnFromExamHistory);
+dom.examHistoryListBackBtn.addEventListener("click", showExamHistoryHome);
+dom.mockExamHistoryBtn.addEventListener("click", () => showExamHistoryList("mock"));
+dom.pastExamHistoryBtn.addEventListener("click", () => showExamHistoryList("past"));
 dom.courseMaterialsBtn.addEventListener("click", showMaterialsHome);
 dom.materialsBackBtn.addEventListener("click", returnFromMaterials);
 dom.materialsCategoryBackBtn.addEventListener("click", showMaterialsHome);

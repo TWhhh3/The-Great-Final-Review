@@ -92,6 +92,7 @@
 
       <section class="panel exam-panel" aria-label="考试模式">
         <h2>考试模式</h2>
+        <button id="examHistoryBtn" class="history-entry-btn" type="button">历史记录</button>
         <div class="exam-grid">
           <span>选择题 15</span>
           <span>填空题 10</span>
@@ -185,6 +186,41 @@
           <button id="clearPastWrongBtn" type="button">清空</button>
         </div>
         <div id="pastWrongList" class="wrong-list">暂无真题错题</div>
+      </section>
+    </section>
+  </main>
+
+  <main id="examHistoryView" class="materials-view hidden">
+    <section id="examHistoryHome" class="materials-page">
+      <section class="panel materials-panel">
+        <button id="examHistoryBackBtn" class="back-btn" type="button">返回题库</button>
+        <p class="placeholder-subject">历史记录</p>
+        <h2>考试记录</h2>
+        <div class="materials-grid" aria-label="考试记录分类">
+          <button id="mockExamHistoryBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>模拟考试记录</h3>
+              <p>查看近五次模拟考试提交记录</p>
+            </span>
+            <span class="subject-status ready">近五次</span>
+          </button>
+          <button id="pastExamHistoryBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>真题考试记录</h3>
+              <p>查看近五次真题考试提交记录</p>
+            </span>
+            <span class="subject-status ready">近五次</span>
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section id="examHistoryListPage" class="materials-page hidden">
+      <section class="panel materials-panel">
+        <button id="examHistoryListBackBtn" class="back-btn" type="button">返回历史记录</button>
+        <p class="placeholder-subject">历史记录</p>
+        <h2 id="examHistoryListTitle">-</h2>
+        <div id="examHistoryList" class="exam-history-list"></div>
       </section>
     </section>
   </main>
