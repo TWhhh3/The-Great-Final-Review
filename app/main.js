@@ -1509,8 +1509,21 @@ function lockCurrentAnswerInput(question) {
   }
 }
 
+function stripIgnoredNonChoiceChars(value) {
+  const text = String(value).toLowerCase().replace(/\s+/g, "");
+  try {
+    return text.replace(/[\p{P}，。；：、“”‘’（）《》【】]/gu, "");
+  } catch {
+    return text.replace(/[，。；：、“”‘’（）《》【】[\]{}.,;:!?'""`~\-_/\\|]/g, "");
+  }
+}
+
 function normalizeFill(value) {
-  return String(value).toLowerCase().replace(/\s+/g, "");
+  return stripIgnoredNonChoiceChars(value);
+}
+
+function normalizeNonChoiceAnswer(value) {
+  return stripIgnoredNonChoiceChars(value);
 }
 
 function parseChoiceLetters(value) {
@@ -1539,7 +1552,7 @@ function normalizeProgram(value) {
 }
 
 function tokensForSubjective(value, type) {
-  const normalized = isProgramDesignType(type) ? normalizeProgram(value) : normalizeChineseAnswer(value);
+  const normalized = normalizeNonChoiceAnswer(value);
   const asciiTokens = normalized.match(/[a-z0-9_#@]+/g) || [];
   const chineseTokens = normalized.match(/[\u4e00-\u9fa5]{2,}/g) || [];
   const chunks = [];
@@ -1560,7 +1573,7 @@ function overlapScore(userAnswer, referenceAnswer, type) {
   if (!refTokens.length) {
     return 0;
   }
-  const userText = isProgramDesignType(type) ? normalizeProgram(userAnswer) : normalizeChineseAnswer(userAnswer);
+  const userText = normalizeNonChoiceAnswer(userAnswer);
   let hits = 0;
   refTokens.forEach((token) => {
     if (userText.includes(token)) {
