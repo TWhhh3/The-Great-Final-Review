@@ -20,6 +20,16 @@ const dom = {
   backToMenuBtn: document.getElementById("backToMenuBtn"),
   currentSubjectText: document.getElementById("currentSubjectText"),
   courseMaterialsBtn: document.getElementById("courseMaterialsBtn"),
+  favoriteZoneBtn: document.getElementById("favoriteZoneBtn"),
+  favoriteView: document.getElementById("favoriteView"),
+  favoriteHome: document.getElementById("favoriteHome"),
+  favoriteListPage: document.getElementById("favoriteListPage"),
+  favoriteBackBtn: document.getElementById("favoriteBackBtn"),
+  favoriteListBackBtn: document.getElementById("favoriteListBackBtn"),
+  mockFavoriteBtn: document.getElementById("mockFavoriteBtn"),
+  pastFavoriteBtn: document.getElementById("pastFavoriteBtn"),
+  favoriteListTitle: document.getElementById("favoriteListTitle"),
+  favoriteList: document.getElementById("favoriteList"),
   materialsView: document.getElementById("materialsView"),
   materialsHome: document.getElementById("materialsHome"),
   materialsListPage: document.getElementById("materialsListPage"),
@@ -80,11 +90,13 @@ const dom = {
   difficultyText: document.getElementById("difficultyText"),
   questionSourceText: document.getElementById("questionSourceText"),
   questionStem: document.getElementById("questionStem"),
+  favoriteBtn: document.getElementById("favoriteBtn"),
   optionsBox: document.getElementById("optionsBox"),
   answerBox: document.getElementById("answerBox"),
   submitBtn: document.getElementById("submitBtn"),
   showAnswerBtn: document.getElementById("showAnswerBtn"),
   addWrongBtn: document.getElementById("addWrongBtn"),
+  favoriteReturnBtn: document.getElementById("favoriteReturnBtn"),
   resultPanel: document.getElementById("resultPanel"),
   resultTitle: document.getElementById("resultTitle"),
   questionScore: document.getElementById("questionScore"),
@@ -152,6 +164,7 @@ const state = {
   submittedCurrent: false,
   mode: "practice",
   practiceSource: "mock",
+  favoriteSource: "mock",
   examSource: "mock",
   currentSubject: null,
   subjectStatuses: new Map(),
@@ -165,6 +178,8 @@ const state = {
   wrongPracticeSubmissions: new Map(),
   pastWrongPracticeAnswers: new Map(),
   pastWrongPracticeSubmissions: new Map(),
+  favoritePracticeAnswers: new Map(),
+  favoritePracticeSubmissions: new Map(),
   examAnswers: new Map(),
   examResults: new Map(),
   pastExamQuestions: [],
@@ -355,6 +370,7 @@ function showView(viewName) {
   dom.menuView.classList.toggle("hidden", viewName !== "menu");
   dom.questionView.classList.toggle("hidden", viewName !== "question");
   dom.placeholderView.classList.toggle("hidden", viewName !== "placeholder");
+  dom.favoriteView.classList.toggle("hidden", viewName !== "favorite");
   dom.examHistoryView.classList.toggle("hidden", viewName !== "examHistory");
   dom.materialsView.classList.toggle("hidden", viewName !== "materials");
   dom.scoreboard.classList.toggle("hidden", viewName !== "question");
@@ -363,7 +379,9 @@ function showView(viewName) {
 
 function updateExamLayout() {
   const isExam = state.mode === "exam";
+  const isFavorite = isFavoritePracticeMode();
   dom.questionView.classList.toggle("exam-layout", isExam);
+  dom.questionView.classList.toggle("favorite-layout", isFavorite);
   dom.examToolbar.classList.toggle("hidden", !isExam);
   dom.examNavRow.classList.toggle("hidden", !isExam);
   dom.examQuestionNav.classList.toggle("hidden", !isExam);
@@ -693,6 +711,211 @@ function handleExamExitClick() {
   exitExam();
 }
 
+function favoriteKey(source) {
+  const subjectId = state.currentSubject ? state.currentSubject.id : "unknown";
+  return `favoriteBook:${subjectId}:${source}`;
+}
+
+function favoriteTitle(source) {
+  return source === "past" ? "真题收藏" : "模拟题收藏";
+}
+
+function currentFavoriteSource() {
+  if (state.mode === "exam") {
+    return state.examSource === "past" ? "past" : "mock";
+  }
+  if (state.mode === "practice") {
+    return state.practiceSource === "past" ? "past" : "mock";
+  }
+  if (isPastWrongPracticeMode()) {
+    return "past";
+  }
+  if (state.mode === "wrongPractice") {
+    return "mock";
+  }
+  if (isFavoritePracticeMode()) {
+    return state.favoriteSource === "past" ? "past" : "mock";
+  }
+  return "mock";
+}
+
+function loadFavorites(source) {
+  try {
+    const items = JSON.parse(localStorage.getItem(favoriteKey(source)) || "[]");
+    return Array.isArray(items) ? items : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavorites(source, items) {
+  localStorage.setItem(favoriteKey(source), JSON.stringify(items));
+}
+
+function makeFavoriteRecord(question) {
+  return {
+    编号: field(question, "编号"),
+    章节: field(question, "章节"),
+    题型: field(question, "题型"),
+    难度: field(question, "难度"),
+    题干: field(question, "题干"),
+    选项: field(question, "选项") || [],
+    答案: field(question, "答案"),
+    解析: field(question, "解析"),
+    知识点来源: field(question, "知识点来源"),
+    题目来源: field(question, "题目来源"),
+    year: field(question, "year"),
+    source_type: field(question, "source_type"),
+    source: field(question, "source"),
+    收藏时间: new Date().toLocaleString(),
+  };
+}
+
+function isFavoriteQuestion(question, source = currentFavoriteSource()) {
+  const id = field(question, "编号");
+  return Boolean(id && loadFavorites(source).some((item) => item.编号 === id));
+}
+
+function updateFavoriteButton(question) {
+  const canFavorite = Boolean(question) && (
+    state.mode === "practice"
+    || state.mode === "exam"
+    || isWrongPracticeMode()
+  );
+  dom.favoriteBtn.classList.toggle("hidden", isFavoritePracticeMode());
+  dom.favoriteBtn.disabled = !canFavorite;
+  const favorited = canFavorite && isFavoriteQuestion(question);
+  dom.favoriteBtn.classList.toggle("active", favorited);
+  dom.favoriteBtn.textContent = favorited ? "已收藏" : "收藏";
+}
+
+function addCurrentFavorite() {
+  const question = currentQuestion();
+  if (!question) {
+    return;
+  }
+  const source = currentFavoriteSource();
+  const id = field(question, "编号");
+  const items = loadFavorites(source);
+  const record = makeFavoriteRecord(question);
+  const existingIndex = items.findIndex((item) => item.编号 === id);
+  if (existingIndex >= 0) {
+    items.splice(existingIndex, 1);
+    saveFavorites(source, items);
+    updateFavoriteButton(question);
+    alert("已取消收藏。");
+    return;
+  }
+  items.unshift(record);
+  saveFavorites(source, items);
+  updateFavoriteButton(question);
+  alert(`已收藏到${source === "past" ? "真题" : "模拟题"}收藏区。`);
+}
+
+function showFavoriteHome() {
+  if (!state.currentSubject) {
+    return;
+  }
+  showView("favorite");
+  dom.favoriteHome.classList.remove("hidden");
+  dom.favoriteListPage.classList.add("hidden");
+  dom.appTitle.textContent = "收藏区";
+  dom.loadStatus.textContent = state.currentSubject.name;
+}
+
+function returnFromFavorite() {
+  if (state.currentSubject) {
+    showView("question");
+    dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
+    dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
+    showQuestion(state.currentIndex);
+  } else {
+    renderMenu();
+  }
+}
+
+function showFavoriteList(source) {
+  showView("favorite");
+  dom.favoriteHome.classList.add("hidden");
+  dom.favoriteListPage.classList.remove("hidden");
+  dom.favoriteListTitle.textContent = favoriteTitle(source);
+  dom.favoriteList.innerHTML = "";
+
+  const items = loadFavorites(source);
+  if (!items.length) {
+    dom.favoriteList.textContent = "暂无收藏题目";
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "favorite-list-item";
+    button.textContent = `${item.编号}｜${item.题型}｜${item.章节}`;
+    button.addEventListener("click", () => openFavoriteQuestion(source, index));
+    dom.favoriteList.appendChild(button);
+  });
+}
+
+function openFavoriteQuestion(source, index) {
+  const items = loadFavorites(source);
+  if (!items.length) {
+    showFavoriteList(source);
+    return;
+  }
+  state.mode = "favoritePractice";
+  state.favoriteSource = source;
+  state.filteredQuestions = items;
+  state.currentIndex = Math.max(0, Math.min(index, items.length - 1));
+  state.score = 0;
+  state.answered = 0;
+  state.sessionWrongCount = 0;
+  state.favoritePracticeAnswers = new Map();
+  state.favoritePracticeSubmissions = new Map();
+  state.examSubmitted = false;
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
+  stopTimer();
+  updateStats();
+  showView("question");
+  dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
+  dom.loadStatus.textContent = favoriteTitle(source);
+  showQuestion(state.currentIndex);
+}
+
+function returnToFavoriteList() {
+  saveCurrentPracticeAnswer();
+  const source = state.favoriteSource || "mock";
+  state.mode = "practice";
+  state.favoritePracticeAnswers = new Map();
+  state.favoritePracticeSubmissions = new Map();
+  state.filteredQuestions = getFilteredQuestions();
+  state.currentIndex = 0;
+  updateStats();
+  showFavoriteList(source);
+}
+
+function removeCurrentFavoriteQuestion() {
+  const question = currentQuestion();
+  if (!question || !isFavoritePracticeMode()) {
+    return;
+  }
+  const source = state.favoriteSource || "mock";
+  const id = field(question, "编号");
+  const items = loadFavorites(source).filter((item) => item.编号 !== id);
+  const nextIndex = Math.min(state.currentIndex, Math.max(0, state.filteredQuestions.length - 2));
+  saveFavorites(source, items);
+  state.filteredQuestions = state.filteredQuestions.filter((item) => field(item, "编号") !== id);
+  state.favoritePracticeAnswers.delete(id);
+  state.favoritePracticeSubmissions.delete(id);
+  updateStats();
+  if (!state.filteredQuestions.length) {
+    returnToFavoriteList();
+    return;
+  }
+  showQuestion(nextIndex);
+}
+
 function resetSession() {
   state.allQuestions = [];
   state.pastPracticeQuestions = [];
@@ -704,12 +927,15 @@ function resetSession() {
   state.submittedCurrent = false;
   state.mode = "practice";
   state.practiceSource = "mock";
+  state.favoriteSource = "mock";
   state.practiceAnswers = new Map();
   state.practiceSubmissions = new Map();
   state.wrongPracticeAnswers = new Map();
   state.wrongPracticeSubmissions = new Map();
   state.pastWrongPracticeAnswers = new Map();
   state.pastWrongPracticeSubmissions = new Map();
+  state.favoritePracticeAnswers = new Map();
+  state.favoritePracticeSubmissions = new Map();
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
@@ -926,8 +1152,12 @@ function isWrongPracticeMode() {
   return state.mode === "wrongPractice" || isPastWrongPracticeMode();
 }
 
+function isFavoritePracticeMode() {
+  return state.mode === "favoritePractice";
+}
+
 function isPracticeAnswerMode() {
-  return state.mode === "practice" || isWrongPracticeMode();
+  return state.mode === "practice" || isWrongPracticeMode() || isFavoritePracticeMode();
 }
 
 function syncQuestionJumpInput(value) {
@@ -951,6 +1181,8 @@ function showQuestion(index) {
     ? "当前模式：错题本重做"
     : isPastWrongPracticeMode()
     ? "当前模式：真题错题重做"
+    : isFavoritePracticeMode()
+    ? `当前模式：收藏题重做（${state.favoriteSource === "past" ? "真题" : "模拟题"}）`
     : `当前模式：练习模式（${practiceSourceLabel()}）`;
   dom.poolText.textContent = `当前题池：${total}`;
   dom.positionText.textContent = total ? `第 ${safeIndex + 1} / ${total} 题` : "第 0 / 0 题";
@@ -971,9 +1203,14 @@ function showQuestion(index) {
   dom.examSubmitBtn.classList.toggle("hidden", state.viewingExamHistory);
   dom.examExitBtn.textContent = state.viewingExamHistory ? "返回" : "退出考试";
   dom.submitBtn.textContent = state.mode === "exam" ? "保存答案" : "提交答案";
+  dom.favoriteReturnBtn.classList.toggle("hidden", !isFavoritePracticeMode());
   dom.showAnswerBtn.disabled = state.mode === "exam" && !state.examSubmitted;
   dom.addWrongBtn.disabled = state.mode === "exam" && !state.examSubmitted;
-  dom.addWrongBtn.textContent = isWrongPracticeMode() ? "移出错题本" : "加入错题本";
+  dom.addWrongBtn.textContent = isFavoritePracticeMode()
+    ? "取消收藏"
+    : isWrongPracticeMode()
+    ? "移出错题本"
+    : "加入错题本";
 
   if (!total) {
     dom.qidText.textContent = "-";
@@ -986,6 +1223,10 @@ function showQuestion(index) {
     dom.questionStem.textContent = "没有符合条件的题目";
     dom.optionsBox.innerHTML = "";
     dom.answerBox.innerHTML = "";
+    dom.favoriteBtn.disabled = true;
+    dom.favoriteBtn.classList.remove("active");
+    dom.favoriteBtn.classList.remove("hidden");
+    dom.favoriteBtn.textContent = "收藏";
     renderExamQuestionNav();
     return;
   }
@@ -1006,6 +1247,7 @@ function showQuestion(index) {
   dom.questionSourceText.textContent = questionSource ? `来源：${questionSource}` : "-";
   dom.questionSourceText.classList.toggle("hidden", !questionSource);
   renderQuestionStem(field(question, "题干"));
+  updateFavoriteButton(question);
   renderAnswerInput(question);
   renderExamQuestionNav();
   const submission = isPracticeAnswerMode() ? getPracticeSubmission(question) : null;
@@ -1151,6 +1393,8 @@ function getPracticeSubmission(question) {
     ? state.wrongPracticeSubmissions
     : isPastWrongPracticeMode()
     ? state.pastWrongPracticeSubmissions
+    : isFavoritePracticeMode()
+    ? state.favoritePracticeSubmissions
     : state.practiceSubmissions;
   return submissions.get(questionKey(question)) || null;
 }
@@ -1160,6 +1404,8 @@ function getPracticeAnswer(question) {
     ? state.wrongPracticeAnswers
     : isPastWrongPracticeMode()
     ? state.pastWrongPracticeAnswers
+    : isFavoritePracticeMode()
+    ? state.favoritePracticeAnswers
     : state.practiceAnswers;
   return answers.get(questionKey(question)) || "";
 }
@@ -1176,6 +1422,8 @@ function saveCurrentPracticeAnswer() {
     ? state.wrongPracticeAnswers
     : isPastWrongPracticeMode()
     ? state.pastWrongPracticeAnswers
+    : isFavoritePracticeMode()
+    ? state.favoritePracticeAnswers
     : state.practiceAnswers;
   answers.set(questionKey(question), getUserAnswer(question).trim());
 }
@@ -1419,11 +1667,15 @@ function submitAnswer() {
     ? state.wrongPracticeAnswers
     : isPastWrongPracticeMode()
     ? state.pastWrongPracticeAnswers
+    : isFavoritePracticeMode()
+    ? state.favoritePracticeAnswers
     : state.practiceAnswers;
   const submissions = state.mode === "wrongPractice"
     ? state.wrongPracticeSubmissions
     : isPastWrongPracticeMode()
     ? state.pastWrongPracticeSubmissions
+    : isFavoritePracticeMode()
+    ? state.favoritePracticeSubmissions
     : state.practiceSubmissions;
   answers.set(questionKey(question), userAnswer);
   submissions.set(questionKey(question), { userAnswer, result });
@@ -2322,7 +2574,9 @@ dom.showAnswerBtn.addEventListener("click", showReferenceOnly);
 dom.addWrongBtn.addEventListener("click", () => {
   const question = currentQuestion();
   if (question) {
-    if (isWrongPracticeMode()) {
+    if (isFavoritePracticeMode()) {
+      removeCurrentFavoriteQuestion();
+    } else if (isWrongPracticeMode()) {
       removeCurrentWrongPracticeQuestion();
     } else {
       addWrongQuestion(question, getUserAnswer(question), true);
@@ -2343,6 +2597,13 @@ dom.clearWrongBtn.addEventListener("click", clearWrongBook);
 dom.clearPastWrongBtn.addEventListener("click", clearPastWrongBook);
 dom.backToMenuBtn.addEventListener("click", returnToMenu);
 dom.placeholderBackBtn.addEventListener("click", renderMenu);
+dom.favoriteZoneBtn.addEventListener("click", showFavoriteHome);
+dom.favoriteBackBtn.addEventListener("click", returnFromFavorite);
+dom.favoriteListBackBtn.addEventListener("click", showFavoriteHome);
+dom.mockFavoriteBtn.addEventListener("click", () => showFavoriteList("mock"));
+dom.pastFavoriteBtn.addEventListener("click", () => showFavoriteList("past"));
+dom.favoriteBtn.addEventListener("click", addCurrentFavorite);
+dom.favoriteReturnBtn.addEventListener("click", returnToFavoriteList);
 dom.examHistoryBtn.addEventListener("click", showExamHistoryHome);
 dom.examHistoryBackBtn.addEventListener("click", returnFromExamHistory);
 dom.examHistoryListBackBtn.addEventListener("click", showExamHistoryHome);

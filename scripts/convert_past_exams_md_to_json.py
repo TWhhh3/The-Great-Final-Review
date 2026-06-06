@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_PATH = ROOT / "materials" / "往年真题.md"
+SOURCE_PATH = ROOT / "materials" / "microcomputer" / "往年真题.md"
 OUTPUT_PATH = ROOT / "app" / "data" / "past_exams_microcomputer.json"
 
 
@@ -102,7 +102,7 @@ def split_inline_options(stem: str) -> tuple[str, list[str]]:
 
 
 def parse_markdown(text: str) -> list[dict]:
-    parts = re.split(r"^###\s+(.+?)\s*$", text, flags=re.MULTILINE)
+    parts = re.split(r"^###\s*(.+?)\s*$", text, flags=re.MULTILINE)
     questions: list[dict] = []
     for index in range(1, len(parts), 2):
         qid = parts[index].strip()

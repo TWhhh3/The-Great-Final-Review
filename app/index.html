@@ -45,6 +45,7 @@
         <p>当前科目</p>
         <strong id="currentSubjectText">-</strong>
         <button id="courseMaterialsBtn" class="materials-entry-btn" type="button">课程资料</button>
+        <button id="favoriteZoneBtn" class="materials-entry-btn" type="button">收藏区</button>
       </section>
 
       <section class="panel controls" aria-label="筛选区">
@@ -132,7 +133,10 @@
         <span id="difficultyText">-</span>
         <span id="questionSourceText" class="hidden">-</span>
       </div>
-      <div id="questionStem" class="question-stem">暂无题目</div>
+      <div class="question-stem-row">
+        <div id="questionStem" class="question-stem">暂无题目</div>
+        <button id="favoriteBtn" class="favorite-btn" type="button">收藏</button>
+      </div>
       <div id="optionsBox" class="options"></div>
       <div id="answerBox" class="answer-box"></div>
       <div class="button-row submit-row">
@@ -141,6 +145,7 @@
         <button id="addWrongBtn" type="button">加入错题本</button>
         <button id="prevBtn" type="button">上一题</button>
         <button id="nextBtn" type="button">下一题</button>
+        <button id="favoriteReturnBtn" type="button" class="hidden">返回</button>
       </div>
       <div id="examNavRow" class="button-row exam-nav-row hidden">
         <button id="examPrevBtn" type="button">上一题</button>
@@ -186,6 +191,41 @@
           <button id="clearPastWrongBtn" type="button">清空</button>
         </div>
         <div id="pastWrongList" class="wrong-list">暂无真题错题</div>
+      </section>
+    </section>
+  </main>
+
+  <main id="favoriteView" class="materials-view hidden">
+    <section id="favoriteHome" class="materials-page">
+      <section class="panel materials-panel">
+        <button id="favoriteBackBtn" class="back-btn" type="button">返回题库</button>
+        <p class="placeholder-subject">收藏区</p>
+        <h2>收藏区</h2>
+        <div class="materials-grid" aria-label="收藏题库分类">
+          <button id="mockFavoriteBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>模拟题</h3>
+              <p>练习模式和模拟考试收藏的题目</p>
+            </span>
+            <span class="subject-status ready">收藏题</span>
+          </button>
+          <button id="pastFavoriteBtn" class="subject-card material-card" type="button">
+            <span>
+              <h3>真题</h3>
+              <p>真题练习和真题考试收藏的题目</p>
+            </span>
+            <span class="subject-status ready">收藏题</span>
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section id="favoriteListPage" class="materials-page hidden">
+      <section class="panel materials-panel">
+        <button id="favoriteListBackBtn" class="back-btn" type="button">返回收藏区</button>
+        <p class="placeholder-subject">收藏区</p>
+        <h2 id="favoriteListTitle">-</h2>
+        <div id="favoriteList" class="favorite-list"></div>
       </section>
     </section>
   </main>
