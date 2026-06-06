@@ -1989,6 +1989,122 @@ function pickBalanced(pool, count, usedIds) {
   return picked;
 }
 
+function allocateCountsByType(typeCounts, totalCount) {
+  const entries = [...typeCounts.entries()].filter(([, count]) => count > 0);
+  if (!entries.length || totalCount <= 0) {
+    return new Map();
+  }
+
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  const allocations = entries.map(([type, count]) => {
+    const raw = (count / total) * totalCount;
+    const base = totalCount >= entries.length ? Math.max(1, Math.floor(raw)) : 0;
+    return { type, count, value: base, remainder: raw - Math.floor(raw) };
+  });
+
+  let assigned = allocations.reduce((sum, item) => sum + item.value, 0);
+  while (assigned > totalCount) {
+    const item = allocations
+      .filter((entry) => entry.value > 0)
+      .sort((a, b) => a.remainder - b.remainder || b.value - a.value)[0];
+    if (!item) {
+      break;
+    }
+    item.value -= 1;
+    assigned -= 1;
+  }
+  while (assigned < totalCount) {
+    const item = allocations
+      .sort((a, b) => b.remainder - a.remainder || b.count - a.count)[0];
+    item.value += 1;
+    assigned += 1;
+  }
+
+  return new Map(allocations.filter((item) => item.value > 0).map((item) => [item.type, item.value]));
+}
+
+function pastExamTypeQuotas(sourceQuestions) {
+  const quotas = new Map();
+  examPlan.forEach((plan) => {
+    const typeCounts = new Map();
+    sourceQuestions.forEach((question) => {
+      const type = field(question, "题型");
+      if (!plan.match(type)) {
+        return;
+      }
+      typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+    });
+    allocateCountsByType(typeCounts, plan.count).forEach((count, type) => {
+      quotas.set(type, count);
+    });
+  });
+  return quotas;
+}
+
+function examPlanCoverageKey(plan) {
+  return plan.match("单项选择题") && plan.match("多项选择题") ? "选择题" : plan.label;
+}
+
+function pastExamCoverageKey() {
+  return state.currentSubject ? `pastExamCoverage:${state.currentSubject.id}` : "pastExamCoverage:unknown";
+}
+
+function loadPastExamCoverage(sourceQuestions) {
+  let coverage = null;
+  try {
+    coverage = JSON.parse(localStorage.getItem(pastExamCoverageKey()) || "null");
+  } catch {
+    coverage = null;
+  }
+  const byType = {};
+  const validIdsByType = new Map();
+  sourceQuestions.forEach((question) => {
+    const type = field(question, "题型");
+    if (!validIdsByType.has(type)) {
+      validIdsByType.set(type, new Set());
+    }
+    validIdsByType.get(type).add(field(question, "编号"));
+  });
+  examPlan.forEach((plan) => {
+    const key = examPlanCoverageKey(plan);
+    if (!validIdsByType.has(key)) {
+      validIdsByType.set(key, new Set());
+    }
+    sourceQuestions
+      .filter((question) => plan.match(field(question, "题型")))
+      .forEach((question) => validIdsByType.get(key).add(field(question, "编号")));
+  });
+
+  Object.entries(coverage?.byType || {}).forEach(([type, ids]) => {
+    const validIds = validIdsByType.get(type) || new Set();
+    byType[type] = Array.isArray(ids) ? ids.filter((id) => validIds.has(id)) : [];
+  });
+  return { byType };
+}
+
+function savePastExamCoverage(coverage) {
+  localStorage.setItem(pastExamCoverageKey(), JSON.stringify(coverage));
+}
+
+function pickCoverageBalanced(pool, count, usedIds, seenIds) {
+  const picked = [];
+  const firstPool = pool.filter((question) => !seenIds.has(field(question, "编号")));
+  const firstPick = pickBalanced(firstPool, Math.min(count, firstPool.length), usedIds);
+  picked.push(...firstPick);
+  firstPick.forEach((question) => seenIds.add(field(question, "编号")));
+
+  if (picked.length >= count) {
+    return picked;
+  }
+
+  seenIds.clear();
+  const secondPool = pool.filter((question) => !usedIds.has(field(question, "编号")));
+  const secondPick = pickBalanced(secondPool, count - picked.length, usedIds);
+  picked.push(...secondPick);
+  secondPick.forEach((question) => seenIds.add(field(question, "编号")));
+  return picked;
+}
+
 function examTypeOrder(question) {
   const type = field(question, "题型");
   if (isChoiceType(type)) {
@@ -2045,6 +2161,34 @@ function buildExamPaper(sourceQuestions = state.allQuestions) {
   }));
 }
 
+function buildPastExamPaper(sourceQuestions) {
+  const usedIds = new Set();
+  const paper = [];
+  const warnings = [];
+  const coverage = loadPastExamCoverage(sourceQuestions);
+
+  examPlan.forEach((plan) => {
+    const key = examPlanCoverageKey(plan);
+    const pool = sourceQuestions.filter((question) => plan.match(field(question, "题型")));
+    const seenIds = new Set(coverage.byType[key] || []);
+    const picked = pickCoverageBalanced(pool, plan.count, usedIds, seenIds);
+    paper.push(...picked);
+    coverage.byType[key] = [...seenIds];
+    if (picked.length < plan.count) {
+      warnings.push(`${key} 题量不足，只抽到 ${picked.length} 道`);
+    }
+  });
+
+  if (warnings.length) {
+    alert(warnings.join("\n"));
+  }
+  savePastExamCoverage(coverage);
+  return orderExamPaper(paper).map((question, index) => ({
+    ...question,
+    考试编号: index + 1,
+  }));
+}
+
 function recentPastExamKey() {
   return state.currentSubject ? `pastExamRecentIds:${state.currentSubject.id}` : "pastExamRecentIds:unknown";
 }
@@ -2088,18 +2232,13 @@ async function startExam(source = "mock") {
 
   let paper = [];
   if (source === "past") {
-    const recentIds = new Set(loadRecentPastExamIds());
-    const preferredQuestions = sourceQuestions.filter((question) => !recentIds.has(field(question, "编号")));
-    paper = buildExamPaper(preferredQuestions.length >= examQuestionCount ? preferredQuestions : sourceQuestions);
+    paper = buildPastExamPaper(sourceQuestions);
   } else {
     paper = buildExamPaper(sourceQuestions);
   }
   if (!paper.length) {
     alert("没有可用于考试模式的题目。");
     return;
-  }
-  if (source === "past") {
-    saveRecentPastExamIds(paper);
   }
   state.mode = "exam";
   state.examSource = source;
