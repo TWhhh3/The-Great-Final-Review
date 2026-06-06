@@ -1377,6 +1377,20 @@ function renderAnswerInput(question) {
     }
     dom.answerBox.appendChild(textarea);
   }
+  ensureEditableExamAnswerInput();
+}
+
+function ensureEditableExamAnswerInput() {
+  if (state.mode !== "exam" || state.examSubmitted) {
+    return;
+  }
+  const input = document.getElementById("answerInput");
+  if (!input) {
+    return;
+  }
+  input.disabled = false;
+  input.readOnly = false;
+  input.style.pointerEvents = "auto";
 }
 
 function currentQuestion() {
