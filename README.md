@@ -1,6 +1,6 @@
 # The-Great-Final-Review
 
-注意仓库中有LFS指针文件，克隆仓库前请确保已经安装了git-lfs!
+**#注意仓库中有LFS指针文件，克隆仓库前请确保已经安装了git-lfs!**
 
 由于往年试卷资料太少，于是用 ChatGPT 生成题库，用于期末复习。
 
