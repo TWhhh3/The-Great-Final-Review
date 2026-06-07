@@ -6,6 +6,7 @@ const appDir = path.join(__dirname, "..", "app");
 const materialsDir = path.join(__dirname, "..", "materials");
 const materialSubjects = {
   microcomputer: "microcomputer",
+  sensor_signal: "sensor_signal",
 };
 const materialCategories = {
   ppt: "上课PPT",

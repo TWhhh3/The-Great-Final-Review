@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>课程题库桌面自测</title>
   <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -94,6 +95,7 @@
       <section class="panel exam-panel" aria-label="考试模式">
         <h2>考试模式</h2>
         <button id="examHistoryBtn" class="history-entry-btn" type="button">历史记录</button>
+        <button id="continueExamBtn" class="history-entry-btn hidden" type="button">继续未完成考试</button>
         <div class="exam-grid">
           <span>选择题 15</span>
           <span>填空题 10</span>
@@ -123,6 +125,7 @@
         </div>
         <div class="button-row">
           <button id="examSubmitBtn" type="button">提交试卷</button>
+          <button id="examAbandonBtn" type="button">放弃考试</button>
           <button id="examExitBtn" type="button">退出考试</button>
         </div>
       </div>
@@ -161,15 +164,15 @@
         <div class="answer-grid">
           <div>
             <h3>参考答案</h3>
-            <pre id="referenceAnswer"></pre>
+            <div id="referenceAnswer" class="rich-text-box"></div>
           </div>
           <div>
             <h3>解析</h3>
-            <pre id="explanationText"></pre>
+            <div id="explanationText" class="rich-text-box"></div>
           </div>
           <div class="source-box">
             <h3>知识点来源</h3>
-            <pre id="sourceText"></pre>
+            <div id="sourceText" class="rich-text-box"></div>
           </div>
         </div>
         <div id="selfReviewTip" class="tip"></div>
@@ -240,16 +243,16 @@
           <button id="mockExamHistoryBtn" class="subject-card material-card" type="button">
             <span>
               <h3>模拟考试记录</h3>
-              <p>查看近五次模拟考试提交记录</p>
+              <p>查看近十次模拟考试提交记录</p>
             </span>
-            <span class="subject-status ready">近五次</span>
+            <span class="subject-status ready">近十次</span>
           </button>
           <button id="pastExamHistoryBtn" class="subject-card material-card" type="button">
             <span>
               <h3>真题考试记录</h3>
-              <p>查看近五次真题考试提交记录</p>
+              <p>查看近十次真题考试提交记录</p>
             </span>
-            <span class="subject-status ready">近五次</span>
+            <span class="subject-status ready">近十次</span>
           </button>
         </div>
       </section>
@@ -304,6 +307,15 @@
     </section>
   </main>
 
+  <div id="imagePreviewModal" class="image-preview-modal hidden" role="dialog" aria-modal="true" aria-label="图片预览">
+    <button id="imagePreviewClose" class="image-preview-close" type="button" aria-label="关闭图片预览">×</button>
+    <div class="image-preview-frame">
+      <img id="imagePreviewImg" alt="图片预览">
+      <div id="imagePreviewCaption" class="image-preview-caption"></div>
+    </div>
+  </div>
+
+  <script src="../node_modules/katex/dist/katex.min.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

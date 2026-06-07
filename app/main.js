@@ -12,6 +12,7 @@ const dom = {
   examPositionText: document.getElementById("examPositionText"),
   examTimerText: document.getElementById("examTimerText"),
   examSubmitBtn: document.getElementById("examSubmitBtn"),
+  examAbandonBtn: document.getElementById("examAbandonBtn"),
   examExitBtn: document.getElementById("examExitBtn"),
   examNavRow: document.getElementById("examNavRow"),
   examPrevBtn: document.getElementById("examPrevBtn"),
@@ -67,6 +68,7 @@ const dom = {
   startExamBtn: document.getElementById("startExamBtn"),
   startPastExamBtn: document.getElementById("startPastExamBtn"),
   examHistoryBtn: document.getElementById("examHistoryBtn"),
+  continueExamBtn: document.getElementById("continueExamBtn"),
   examHistoryView: document.getElementById("examHistoryView"),
   examHistoryHome: document.getElementById("examHistoryHome"),
   examHistoryListPage: document.getElementById("examHistoryListPage"),
@@ -76,6 +78,7 @@ const dom = {
   pastExamHistoryBtn: document.getElementById("pastExamHistoryBtn"),
   examHistoryListTitle: document.getElementById("examHistoryListTitle"),
   examHistoryList: document.getElementById("examHistoryList"),
+  examGrid: document.querySelector(".exam-grid"),
   submitExamBtn: document.getElementById("submitExamBtn"),
   exitExamBtn: document.getElementById("exitExamBtn"),
   clearWrongBtn: document.getElementById("clearWrongBtn"),
@@ -105,6 +108,10 @@ const dom = {
   explanationText: document.getElementById("explanationText"),
   sourceText: document.getElementById("sourceText"),
   selfReviewTip: document.getElementById("selfReviewTip"),
+  imagePreviewModal: document.getElementById("imagePreviewModal"),
+  imagePreviewImg: document.getElementById("imagePreviewImg"),
+  imagePreviewCaption: document.getElementById("imagePreviewCaption"),
+  imagePreviewClose: document.getElementById("imagePreviewClose"),
 };
 
 const subjects = [
@@ -135,7 +142,7 @@ const subjects = [
   },
 ];
 
-const examPlan = [
+const defaultExamPlan = [
   { label: "单项选择题", count: 15, match: (type) => isChoiceType(type) },
   { label: "填空题", count: 10, match: (type) => isFillType(type) },
   { label: "程序阅读题", count: 2, match: (type) => isProgramReadingType(type) },
@@ -144,11 +151,21 @@ const examPlan = [
   { label: "程序设计题", count: 4, match: (type) => isProgramDesignType(type) },
 ];
 
-const pastExamSources = {
-  microcomputer: "data/past_exams_microcomputer.json",
+const subjectExamPlans = {
+  sensor_signal: [
+    { label: "单项选择题", count: 15, match: (type) => isChoiceType(type) },
+    { label: "判断题", count: 10, match: (type) => isJudgeType(type) },
+    { label: "填空题", count: 10, match: (type) => isFillType(type) },
+    { label: "简答题", count: 4, match: (type) => isShortAnswerType(type) },
+    { label: "计算题", count: 5, match: (type) => isCalculationType(type) },
+  ],
 };
 
-const examQuestionCount = examPlan.reduce((total, item) => total + item.count, 0);
+const pastExamSources = {
+  microcomputer: "data/past_exams_microcomputer.json",
+  sensor_signal: "data/past_exams_sensor_signal.json",
+};
+
 const zoomStep = 0.08;
 const minZoomFactor = 0.7;
 const maxZoomFactor = 1.6;
@@ -184,6 +201,7 @@ const state = {
   examResults: new Map(),
   pastExamQuestions: [],
   examSubmitted: false,
+  examAbandoned: false,
   examStartedAt: null,
   viewingExamHistory: false,
   examHistorySource: "",
@@ -208,6 +226,19 @@ function isFillType(type) {
   return String(type).includes("填空");
 }
 
+function isJudgeType(type) {
+  const text = String(type);
+  return text.includes("判断") || text.includes("正误");
+}
+
+function isCalculationType(type) {
+  return String(type).includes("计算");
+}
+
+function isOptionAnswerType(type) {
+  return isChoiceType(type) || isJudgeType(type);
+}
+
 function isShortAnswerType(type) {
   return String(type).includes("简答");
 }
@@ -228,7 +259,8 @@ function isSubjectiveType(type) {
   return isShortAnswerType(type)
     || isSystemExpandType(type)
     || isProgramReadingType(type)
-    || isProgramDesignType(type);
+    || isProgramDesignType(type)
+    || isCalculationType(type);
 }
 
 function uniqueValues(items, getter) {
@@ -366,6 +398,23 @@ function questionCountText(mockCount, pastCount) {
   return `${mockCount} 道模拟题，${pastCount} 道真题`;
 }
 
+function currentExamPlan() {
+  const subjectId = state.currentSubject ? state.currentSubject.id : "";
+  return subjectExamPlans[subjectId] || defaultExamPlan;
+}
+
+function updateExamPanelPlan() {
+  if (!dom.examGrid) {
+    return;
+  }
+  dom.examGrid.innerHTML = "";
+  currentExamPlan().forEach((item) => {
+    const span = document.createElement("span");
+    span.textContent = `${item.label.replace(/题$/, "")} ${item.count}`;
+    dom.examGrid.appendChild(span);
+  });
+}
+
 function showView(viewName) {
   dom.menuView.classList.toggle("hidden", viewName !== "menu");
   dom.questionView.classList.toggle("hidden", viewName !== "question");
@@ -390,7 +439,7 @@ function updateExamLayout() {
   }
   const submitRow = document.querySelector(".submit-row");
   if (submitRow) {
-    submitRow.classList.toggle("hidden", isExam);
+    submitRow.classList.toggle("hidden", isExam && !state.examSubmitted);
   }
 }
 
@@ -551,10 +600,10 @@ function loadExamHistory(source) {
 }
 
 function saveExamHistory(source, records) {
-  localStorage.setItem(examHistoryKey(source), JSON.stringify(records.slice(0, 5)));
+  localStorage.setItem(examHistoryKey(source), JSON.stringify(records.slice(0, 10)));
 }
 
-function saveExamHistoryRecord(answeredCount, wrongCount) {
+function saveExamHistoryRecord(answeredCount, wrongCount, status = "submitted") {
   const source = state.examSource;
   const record = {
     id: Date.now(),
@@ -566,6 +615,7 @@ function saveExamHistoryRecord(answeredCount, wrongCount) {
     answeredCount,
     wrongCount,
     score: state.score,
+    status,
     questions: state.filteredQuestions,
     answers: [...state.examAnswers.entries()],
     results: [...state.examResults.entries()],
@@ -630,7 +680,7 @@ function showExamHistoryList(source) {
   dom.examHistoryList.innerHTML = "";
 
   const records = loadExamHistory(source);
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     const record = records[index];
     const row = document.createElement("div");
     row.className = "exam-history-row";
@@ -667,11 +717,12 @@ function openExamHistoryRecord(source, index) {
   state.filteredQuestions = record.questions || [];
   state.currentIndex = 0;
   state.score = Number(record.score || 0);
-  state.answered = Number(record.questionCount || state.filteredQuestions.length);
+  state.answered = Number(record.answeredCount ?? record.questionCount ?? state.filteredQuestions.length);
   state.sessionWrongCount = Number(record.wrongCount || 0);
   state.examAnswers = new Map(record.answers || []);
   state.examResults = new Map(record.results || []);
   state.examSubmitted = true;
+  state.examAbandoned = record.status === "abandoned";
   state.examStartedAt = record.startedAt || null;
   state.viewingExamHistory = true;
   state.examHistorySource = source;
@@ -694,6 +745,7 @@ function returnToExamHistoryList() {
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   state.examStartedAt = null;
   state.viewingExamHistory = false;
   state.examHistorySource = "";
@@ -709,6 +761,93 @@ function handleExamExitClick() {
     return;
   }
   exitExam();
+}
+
+function examDraftKey() {
+  return state.currentSubject ? `examDraft:${state.currentSubject.id}` : "examDraft:unknown";
+}
+
+function getRemainingExamSeconds() {
+  if (!state.examEndTime) {
+    return null;
+  }
+  return Math.max(0, Math.ceil((state.examEndTime - Date.now()) / 1000));
+}
+
+function loadExamDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(examDraftKey()) || "null");
+    return draft && Array.isArray(draft.questions) && draft.questions.length ? draft : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveExamDraft() {
+  if (state.mode !== "exam" || state.examSubmitted || state.viewingExamHistory || !state.filteredQuestions.length) {
+    return;
+  }
+  const draft = {
+    source: state.examSource,
+    questions: state.filteredQuestions,
+    answers: [...state.examAnswers.entries()],
+    currentIndex: state.currentIndex,
+    startedAt: state.examStartedAt,
+    remainingSeconds: getRemainingExamSeconds(),
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(examDraftKey(), JSON.stringify(draft));
+  updateExamDraftControls();
+}
+
+function clearExamDraft() {
+  localStorage.removeItem(examDraftKey());
+  updateExamDraftControls();
+}
+
+function updateExamDraftControls() {
+  const hasDraft = Boolean(loadExamDraft());
+  dom.continueExamBtn.classList.toggle("hidden", !hasDraft);
+  dom.startExamBtn.disabled = hasDraft;
+  dom.startPastExamBtn.disabled = hasDraft;
+}
+
+function restoreExamDraft() {
+  const draft = loadExamDraft();
+  if (!draft) {
+    updateExamDraftControls();
+    return;
+  }
+  state.mode = "exam";
+  state.examSource = draft.source === "past" ? "past" : "mock";
+  state.filteredQuestions = draft.questions;
+  state.pastExamQuestions = state.examSource === "past" ? draft.questions : [];
+  state.currentIndex = Math.max(0, Math.min(Number(draft.currentIndex || 0), state.filteredQuestions.length - 1));
+  state.score = 0;
+  state.answered = 0;
+  state.sessionWrongCount = 0;
+  state.submittedCurrent = false;
+  state.examAnswers = new Map(draft.answers || []);
+  state.examResults = new Map();
+  state.examSubmitted = false;
+  state.examAbandoned = false;
+  state.examStartedAt = draft.startedAt || new Date().toISOString();
+  state.viewingExamHistory = false;
+  state.examHistorySource = "";
+  state.wrongQuestions = loadWrongBook();
+  state.pastWrongQuestions = loadPastWrongBook();
+  updateStats();
+  renderWrongBook();
+  renderPastWrongBook();
+
+  if (Number.isFinite(draft.remainingSeconds) && draft.remainingSeconds > 0) {
+    startTimer(draft.remainingSeconds);
+  } else {
+    stopTimer();
+  }
+  showView("question");
+  dom.loadStatus.textContent = state.examSource === "past" ? "真题考试（未完成）" : "模拟考试（未完成）";
+  showQuestion(state.currentIndex);
 }
 
 function favoriteKey(source) {
@@ -939,6 +1078,7 @@ function resetSession() {
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   state.examStartedAt = null;
   state.viewingExamHistory = false;
   state.examHistorySource = "";
@@ -979,6 +1119,7 @@ async function loadBank(subject) {
   restorePracticeState(subject);
   state.wrongQuestions = loadWrongBook();
   state.pastWrongQuestions = loadPastWrongBook();
+  updateExamPanelPlan();
   dom.appTitle.textContent = `${subject.name}题库自测`;
   dom.currentSubjectText.textContent = subject.name;
   dom.loadStatus.textContent = "正在加载题库...";
@@ -997,6 +1138,7 @@ async function loadBank(subject) {
   renderWrongBook();
   renderPastWrongBook();
   await restoreSubjectSession(true);
+  updateExamDraftControls();
 }
 
 function applyFilters() {
@@ -1005,6 +1147,7 @@ function applyFilters() {
   state.mode = "practice";
   state.examAnswers = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   state.viewingExamHistory = false;
   state.examHistorySource = "";
   stopTimer();
@@ -1046,6 +1189,7 @@ async function switchPracticeSource(source, session = null, keepCombinedStatus =
   state.mode = "practice";
   state.examAnswers = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   stopTimer();
   state.practiceSource = source;
 
@@ -1199,11 +1343,17 @@ function showQuestion(index) {
     dom.submitExamBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
   }
   dom.examSubmitBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
+  dom.examAbandonBtn.disabled = state.mode !== "exam" || !total || state.examSubmitted;
   dom.examExitBtn.disabled = state.mode !== "exam";
   dom.examSubmitBtn.classList.toggle("hidden", state.viewingExamHistory);
+  dom.examAbandonBtn.classList.toggle("hidden", state.viewingExamHistory || state.examSubmitted);
   dom.examExitBtn.textContent = state.viewingExamHistory ? "返回" : "退出考试";
   dom.submitBtn.textContent = state.mode === "exam" ? "保存答案" : "提交答案";
   dom.favoriteReturnBtn.classList.toggle("hidden", !isFavoritePracticeMode());
+  dom.submitBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
+  dom.showAnswerBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
+  dom.prevBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
+  dom.nextBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
   dom.showAnswerBtn.disabled = state.mode === "exam" && !state.examSubmitted;
   dom.addWrongBtn.disabled = state.mode === "exam" && !state.examSubmitted;
   dom.addWrongBtn.textContent = isFavoritePracticeMode()
@@ -1262,11 +1412,144 @@ function showQuestion(index) {
       showExamQuestionResult(question, examRecord);
     }
   }
+  saveExamDraft();
   saveSubjectSession();
 }
 
-function renderQuestionStem(text) {
-  dom.questionStem.innerHTML = "";
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function resolveImageSource(src) {
+  const clean = String(src).trim().replace(/\\/g, "/").split("#", 1)[0].split("?", 1)[0];
+  if (state.currentSubject && state.currentSubject.id === "sensor_signal" && clean.startsWith("media/")) {
+    const relativePath = clean
+      .replace(/^media\//, "")
+      .split("/")
+      .filter((part) => part && part !== "." && part !== "..")
+      .join("/")
+      .replace(/\.wmf$/i, ".png");
+    return `data/media/sensor_signal/${relativePath}`;
+  }
+  return clean.replace(/\.wmf$/i, ".png");
+}
+
+function decodeLatexEntities(value) {
+  return String(value)
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'");
+}
+
+function normalizeLatexInput(value) {
+  return String(value)
+    .replace(/\u0003c9/g, "\\omega")
+    .replace(/\u0003b1/g, "\\alpha")
+    .replace(/_{2,}/g, "\\underline{\\hspace{2em}}")
+    .replace(/(?<!\\)varphipprox/g, "\\varphi\\approx")
+    .replace(/(?<!\\)varphi/g, "\\varphi")
+    .replace(/(?<![\\a])rctan/g, "\\arctan")
+    .replace(/(?<!\\)arctg/g, "\\arctan")
+    .replace(/(?<!\\)ctg/g, "\\cot")
+    .replace(/(?<!\\)tg/g, "\\tan")
+    .replace(/(?<![\\a])pprox/g, "\\approx")
+    .replace(/\bApprox(?=[0-9.-])/g, "A\\approx")
+    .replace(/(?<!\\)varepsilon/g, "\\varepsilon")
+    .replace(/(?<!\\)lambda/g, "\\lambda");
+}
+
+function renderLatex(latex, displayMode) {
+  const normalizedLatex = normalizeLatexInput(decodeLatexEntities(latex));
+  if (window.katex && typeof window.katex.renderToString === "function") {
+    try {
+      return window.katex.renderToString(normalizedLatex, {
+        displayMode,
+        throwOnError: false,
+        strict: false,
+        trust: false,
+      });
+    } catch {
+      // Fall through to a readable text representation.
+    }
+  }
+  const delimiter = displayMode ? "$$" : "$";
+  return `<span class="math-fallback">${escapeHtml(`${delimiter}${normalizedLatex}${delimiter}`)}</span>`;
+}
+
+function renderInlineHtml(text) {
+  const images = [];
+  const imageToken = "\uE100IMG";
+  let value = String(text).replace(/!\[[^\]]*\]\(([^)]+)\)|<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi, (_match, mdSrc, htmlSrc) => {
+    const index = images.length;
+    images.push(mdSrc || htmlSrc || "");
+    return `${imageToken}${index}\uE101`;
+  });
+
+  value = escapeHtml(value);
+  value = value
+    .replace(/&lt;(\/?)(sub|sup)&gt;/gi, "<$1$2>")
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+
+  value = value.replace(/\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g, (
+    _match,
+    bracketDisplay,
+    dollarDisplay,
+    parenInline,
+    dollarInline,
+  ) => {
+    const displayLatex = bracketDisplay ?? dollarDisplay;
+    const inlineLatex = parenInline ?? dollarInline;
+    return renderLatex(displayLatex ?? inlineLatex, displayLatex !== undefined);
+  });
+
+  images.forEach((src, index) => {
+    const resolved = escapeHtml(resolveImageSource(src));
+    const original = escapeHtml(src);
+    const imageHtml = `<img class="question-image" src="${resolved}" alt="${original}" data-preview-src="${resolved}" data-preview-title="${original}" tabindex="0" role="button" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className: 'image-missing', textContent: '图片无法显示：${original}'}))">`;
+    value = value.replace(`${imageToken}${index}\uE101`, imageHtml);
+  });
+
+  return value.replace(/\n/g, "<br>");
+}
+
+function openImagePreview(image) {
+  if (!dom.imagePreviewModal || !dom.imagePreviewImg) {
+    return;
+  }
+  const src = image.dataset.previewSrc || image.currentSrc || image.src;
+  const title = image.dataset.previewTitle || image.alt || "";
+  dom.imagePreviewImg.src = src;
+  dom.imagePreviewImg.alt = title || "图片预览";
+  if (dom.imagePreviewCaption) {
+    dom.imagePreviewCaption.textContent = title;
+  }
+  dom.imagePreviewModal.classList.remove("hidden");
+  document.body.classList.add("preview-open");
+  if (dom.imagePreviewClose) {
+    dom.imagePreviewClose.focus();
+  }
+}
+
+function closeImagePreview() {
+  if (!dom.imagePreviewModal || dom.imagePreviewModal.classList.contains("hidden")) {
+    return;
+  }
+  dom.imagePreviewModal.classList.add("hidden");
+  document.body.classList.remove("preview-open");
+  if (dom.imagePreviewImg) {
+    dom.imagePreviewImg.removeAttribute("src");
+  }
+}
+
+function renderRichContent(container, text) {
+  container.innerHTML = "";
   const parts = String(text).split(/```(?:\w+)?\n([\s\S]*?)```/g);
 
   parts.forEach((part, index) => {
@@ -1276,7 +1559,7 @@ function renderQuestionStem(text) {
     if (index % 2 === 1) {
       const pre = document.createElement("pre");
       pre.textContent = part.trimEnd();
-      dom.questionStem.appendChild(pre);
+      container.appendChild(pre);
       return;
     }
 
@@ -1286,10 +1569,19 @@ function renderQuestionStem(text) {
         return;
       }
       const paragraph = document.createElement("p");
-      paragraph.textContent = clean;
-      dom.questionStem.appendChild(paragraph);
+      paragraph.innerHTML = renderInlineHtml(clean);
+      container.appendChild(paragraph);
     });
   });
+}
+
+function renderRichInline(container, text) {
+  container.classList.add("rich-inline");
+  container.innerHTML = renderInlineHtml(text);
+}
+
+function renderQuestionStem(text) {
+  renderRichContent(dom.questionStem, text);
 }
 
 function renderAnswerInput(question) {
@@ -1297,11 +1589,14 @@ function renderAnswerInput(question) {
   dom.answerBox.innerHTML = "";
   const type = field(question, "题型");
 
-  if (isChoiceType(type)) {
+  if (isOptionAnswerType(type)) {
     const isMultiple = isMultipleChoiceType(type);
     const practiceSubmission = isPracticeAnswerMode() ? getPracticeSubmission(question) : null;
     const practiceAnswer = isPracticeAnswerMode() ? getPracticeAnswer(question) : "";
-    (field(question, "选项") || []).forEach((optionText) => {
+    const options = isJudgeType(type) && !(field(question, "选项") || []).length
+      ? ["√", "×"]
+      : field(question, "选项") || [];
+    options.forEach((optionText) => {
       const label = document.createElement("label");
       label.className = "option-item";
       const input = document.createElement("input");
@@ -1325,7 +1620,7 @@ function renderAnswerInput(question) {
         input.addEventListener("change", saveCurrentExamAnswer);
       }
       const span = document.createElement("span");
-      span.textContent = optionText;
+      renderRichInline(span, optionText);
       label.appendChild(input);
       label.appendChild(span);
       dom.optionsBox.appendChild(label);
@@ -1464,6 +1759,7 @@ function saveCurrentExamAnswer(updateNav = true) {
   } else {
     updateCurrentExamNavButton();
   }
+  saveExamDraft();
 }
 
 function updateCurrentExamNavButton() {
@@ -1488,7 +1784,7 @@ function questionMaxScore(question) {
 }
 
 function getUserAnswer(question) {
-  if (isChoiceType(field(question, "题型"))) {
+  if (isOptionAnswerType(field(question, "题型"))) {
     const checked = [...document.querySelectorAll("input[name='choice']:checked")];
     return checked.map((input) => input.value).sort().join("");
   }
@@ -1497,7 +1793,7 @@ function getUserAnswer(question) {
 }
 
 function lockCurrentAnswerInput(question) {
-  if (isChoiceType(field(question, "题型"))) {
+  if (isOptionAnswerType(field(question, "题型"))) {
     document.querySelectorAll("input[name='choice']").forEach((input) => {
       input.disabled = true;
     });
@@ -1539,6 +1835,20 @@ function normalizeChineseAnswer(value) {
     .toLowerCase()
     .replace(/\s+/g, "")
     .replace(/[，。；：、“”‘’（）《》【】\[\]{}.,;:!?'""`~\-_/\\|=+*#@%^&$]/g, "");
+}
+
+function normalizeJudgeAnswer(value) {
+  const text = normalizeChineseAnswer(value);
+  if (!text) {
+    return "";
+  }
+  if (text.includes("√") || text.includes("对") || text.includes("正确") || text === "true" || text === "t") {
+    return "√";
+  }
+  if (text.includes("×") || text.includes("错") || text.includes("错误") || text === "false" || text === "f") {
+    return "×";
+  }
+  return String(value).trim().slice(0, 1);
 }
 
 function normalizeProgram(value) {
@@ -1619,6 +1929,19 @@ function evaluate(question, userAnswer) {
     };
   }
 
+  if (isJudgeType(type)) {
+    const expected = normalizeJudgeAnswer(answer);
+    const actual = normalizeJudgeAnswer(userAnswer);
+    return {
+      score: actual && actual === expected ? 1 : 0,
+      correct: actual && actual === expected,
+      title: actual && actual === expected ? "回答正确" : "回答错误",
+      text: `你的答案：${actual || "未填写"}；正确答案：${expected || answer}`,
+      className: actual && actual === expected ? "ok" : "bad",
+      tip: "判断题按“√/×”自动判断。",
+    };
+  }
+
   if (isFillType(type)) {
     const correct = normalizeFill(userAnswer) === normalizeFill(answer);
     return {
@@ -1655,6 +1978,9 @@ function subjectiveTip(type) {
   }
   if (isSystemExpandType(type)) {
     return "自评提示：系统扩展题重点核对地址线、数据线、控制线、片选和访问指令。";
+  }
+  if (isCalculationType(type)) {
+    return "自评提示：计算题重点核对公式选择、代入过程、单位换算和最终数值。";
   }
   return "自评提示：请核对参考答案中的关键点。";
 }
@@ -1736,19 +2062,21 @@ function showResult(question, result) {
   dom.questionScore.textContent = `${result.score.toFixed(2)} 分`;
   dom.resultText.className = `result-text ${result.className}`;
   dom.resultText.textContent = result.text;
-  dom.referenceAnswer.textContent = field(question, "答案");
-  dom.explanationText.textContent = field(question, "解析");
-  dom.sourceText.textContent = [
+  renderRichContent(dom.referenceAnswer, field(question, "答案"));
+  renderRichContent(dom.explanationText, field(question, "解析"));
+  renderRichContent(dom.sourceText, [
     field(question, "知识点来源") ? `知识点来源：${field(question, "知识点来源")}` : "",
     field(question, "题目来源") ? `题目来源：${field(question, "题目来源")}` : "",
-  ].filter(Boolean).join("\n") || "无";
+  ].filter(Boolean).join("\n") || "无");
   dom.selfReviewTip.textContent = result.tip;
 }
 
 function showExamQuestionResult(question, record) {
   showResult(question, record.result);
   dom.resultTitle.textContent = `第 ${question["考试编号"] || state.currentIndex + 1} 题｜${record.result.title}`;
-  dom.resultText.textContent = `${record.result.text}；本题得分 ${record.result.score.toFixed(2)} / ${questionMaxScore(question).toFixed(2)} 分。`;
+  dom.resultText.textContent = record.result.unanswered
+    ? record.result.text
+    : `${record.result.text}；本题得分 ${record.result.score.toFixed(2)} / ${questionMaxScore(question).toFixed(2)} 分。`;
 }
 
 function updateStats() {
@@ -1939,9 +2267,10 @@ function renderExamQuestionNav() {
         const record = getExamResult(question);
         if (record) {
           const maxScore = questionMaxScore(question);
-          button.classList.toggle("score-full", record.result.score >= maxScore);
-          button.classList.toggle("score-zero", record.result.score <= 0);
-          button.classList.toggle("score-partial", record.result.score > 0 && record.result.score < maxScore);
+          button.classList.toggle("score-unanswered", Boolean(record.result.unanswered));
+          button.classList.toggle("score-full", !record.result.unanswered && record.result.score >= maxScore);
+          button.classList.toggle("score-zero", !record.result.unanswered && record.result.score <= 0);
+          button.classList.toggle("score-partial", !record.result.unanswered && record.result.score > 0 && record.result.score < maxScore);
         }
       }
       button.addEventListener("click", () => {
@@ -2038,7 +2367,7 @@ function allocateCountsByType(typeCounts, totalCount) {
 
 function pastExamTypeQuotas(sourceQuestions) {
   const quotas = new Map();
-  examPlan.forEach((plan) => {
+  currentExamPlan().forEach((plan) => {
     const typeCounts = new Map();
     sourceQuestions.forEach((question) => {
       const type = field(question, "题型");
@@ -2078,7 +2407,7 @@ function loadPastExamCoverage(sourceQuestions) {
     }
     validIdsByType.get(type).add(field(question, "编号"));
   });
-  examPlan.forEach((plan) => {
+  currentExamPlan().forEach((plan) => {
     const key = examPlanCoverageKey(plan);
     if (!validIdsByType.has(key)) {
       validIdsByType.set(key, new Set());
@@ -2123,20 +2452,26 @@ function examTypeOrder(question) {
   if (isChoiceType(type)) {
     return isMultipleChoiceType(type) ? 1 : 0;
   }
-  if (isFillType(type)) {
+  if (isJudgeType(type)) {
     return 2;
   }
-  if (isProgramReadingType(type)) {
+  if (isFillType(type)) {
     return 3;
   }
-  if (isShortAnswerType(type)) {
+  if (isProgramReadingType(type)) {
     return 4;
   }
-  if (isSystemExpandType(type)) {
+  if (isShortAnswerType(type)) {
     return 5;
   }
-  if (isProgramDesignType(type)) {
+  if (isSystemExpandType(type)) {
     return 6;
+  }
+  if (isProgramDesignType(type)) {
+    return 7;
+  }
+  if (isCalculationType(type)) {
+    return 8;
   }
   return 99;
 }
@@ -2156,7 +2491,7 @@ function buildExamPaper(sourceQuestions = state.allQuestions) {
   const paper = [];
   const warnings = [];
 
-  examPlan.forEach((item) => {
+  currentExamPlan().forEach((item) => {
     const pool = sourceQuestions.filter((question) => item.match(field(question, "题型")));
     const picked = pickBalanced(pool, item.count, usedIds);
     paper.push(...picked);
@@ -2180,7 +2515,7 @@ function buildPastExamPaper(sourceQuestions) {
   const warnings = [];
   const coverage = loadPastExamCoverage(sourceQuestions);
 
-  examPlan.forEach((plan) => {
+  currentExamPlan().forEach((plan) => {
     const key = examPlanCoverageKey(plan);
     const pool = sourceQuestions.filter((question) => plan.match(field(question, "题型")));
     const seenIds = new Set(coverage.byType[key] || []);
@@ -2220,6 +2555,11 @@ function saveRecentPastExamIds(questions) {
 }
 
 async function startExam(source = "mock") {
+  if (loadExamDraft()) {
+    alert("存在未完成考试，请先继续并完成当前考试。");
+    updateExamDraftControls();
+    return;
+  }
   saveCurrentExamAnswer();
   let sourceQuestions = state.allQuestions;
   if (source === "past") {
@@ -2266,6 +2606,7 @@ async function startExam(source = "mock") {
   state.examAnswers = new Map();
   state.examResults = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   state.examStartedAt = new Date().toISOString();
   state.viewingExamHistory = false;
   state.examHistorySource = "";
@@ -2278,6 +2619,7 @@ async function startExam(source = "mock") {
   }
   dom.loadStatus.textContent = source === "past" ? "真题考试" : "模拟考试";
   showQuestion(0);
+  saveExamDraft();
 }
 
 function startMockExam() {
@@ -2290,6 +2632,7 @@ function startPastExam() {
 
 function exitExam() {
   saveCurrentExamAnswer();
+  saveExamDraft();
   state.mode = "practice";
   state.examSource = "mock";
   state.score = 0;
@@ -2299,6 +2642,7 @@ function exitExam() {
   state.examResults = new Map();
   state.pastExamQuestions = [];
   state.examSubmitted = false;
+  state.examAbandoned = false;
   state.examStartedAt = null;
   state.viewingExamHistory = false;
   state.examHistorySource = "";
@@ -2309,6 +2653,7 @@ function exitExam() {
   state.pastWrongQuestions = loadPastWrongBook();
   renderWrongBook();
   renderPastWrongBook();
+  updateExamDraftControls();
   showQuestion(0);
 }
 
@@ -2347,11 +2692,6 @@ function submitExamPaper(confirmSubmission = true) {
     }
     if (!result.correct) {
       wrongCount += 1;
-      if (state.examSource === "past") {
-        addPastWrongQuestion(question, userAnswer, false);
-      } else {
-        addWrongQuestion(question, userAnswer, false);
-      }
     }
   });
 
@@ -2359,12 +2699,73 @@ function submitExamPaper(confirmSubmission = true) {
   state.answered = state.filteredQuestions.length;
   state.sessionWrongCount = wrongCount;
   state.examSubmitted = true;
-  saveExamHistoryRecord(answeredCount, wrongCount);
+  state.examAbandoned = false;
+  saveExamHistoryRecord(answeredCount, wrongCount, "submitted");
+  clearExamDraft();
   stopTimer();
   updateStats();
   renderWrongBook();
   renderPastWrongBook();
   dom.loadStatus.textContent = `已提交 ${state.filteredQuestions.length} 道题，作答 ${answeredCount} 道，错题/需复核 ${wrongCount} 道。`;
+  showQuestion(state.currentIndex);
+}
+
+function abandonExamPaper() {
+  if (state.mode !== "exam" || state.examSubmitted) {
+    return;
+  }
+  saveCurrentExamAnswer();
+  if (!state.filteredQuestions.length) {
+    return;
+  }
+  if (!confirm("确认放弃本次考试吗？已作答题目会判分，未作答题目只显示答案解析且不计分。")) {
+    return;
+  }
+
+  let totalScore = 0;
+  let answeredCount = 0;
+  let wrongCount = 0;
+  state.examResults = new Map();
+
+  state.filteredQuestions.forEach((question) => {
+    const userAnswer = getExamAnswer(question);
+    if (!userAnswer) {
+      state.examResults.set(questionKey(question), {
+        userAnswer: "",
+        result: {
+          score: 0,
+          correct: true,
+          unanswered: true,
+          title: "未作答",
+          text: "本题未作答，已显示参考答案和解析，不计入本次判分。",
+          className: "warn",
+          tip: "放弃考试后，未作答题目仅供查看参考答案和解析，不计分。",
+        },
+      });
+      return;
+    }
+
+    const result = evaluate(question, userAnswer);
+    state.examResults.set(questionKey(question), { userAnswer, result });
+    totalScore += result.score;
+    answeredCount += 1;
+    if (!result.correct) {
+      wrongCount += 1;
+    }
+  });
+
+  state.score = Number(totalScore.toFixed(2));
+  state.answered = answeredCount;
+  state.sessionWrongCount = wrongCount;
+  state.examSubmitted = true;
+  state.examAbandoned = true;
+  saveExamHistoryRecord(answeredCount, wrongCount, "abandoned");
+  clearExamDraft();
+  stopTimer();
+  updateStats();
+  renderWrongBook();
+  renderPastWrongBook();
+  dom.loadStatus.textContent = `已放弃考试，作答 ${answeredCount} 道，错题/需复核 ${wrongCount} 道，未作答题目不计分。`;
   showQuestion(state.currentIndex);
 }
 
@@ -2374,11 +2775,11 @@ function showExamResult(lines, wrongLines, answeredCount) {
   dom.questionScore.textContent = `${state.score.toFixed(2)} 分`;
   dom.resultText.className = `result-text ${wrongLines.length ? "bad" : "ok"}`;
   dom.resultText.textContent = `已提交 ${state.filteredQuestions.length} 道题，作答 ${answeredCount} 道。错题/需复核 ${wrongLines.length} 道。`;
-  dom.referenceAnswer.textContent = lines.join("\n\n------------------------------\n\n");
-  dom.explanationText.textContent = wrongLines.length
+  renderRichContent(dom.referenceAnswer, lines.join("\n\n------------------------------\n\n"));
+  renderRichContent(dom.explanationText, wrongLines.length
     ? wrongLines.join("\n")
-    : "本次模拟试卷没有错题。";
-  dom.sourceText.textContent = "每题知识点来源已列在左侧答案汇总中。";
+    : "本次模拟试卷没有错题。");
+  renderRichContent(dom.sourceText, "每题知识点来源已列在左侧答案汇总中。");
   dom.selfReviewTip.textContent = "错题/需复核题已列在“解析”区域，并已自动加入错题本；主观题为文本重合度自评分，请结合参考答案人工复核。";
 }
 
@@ -2414,6 +2815,7 @@ function updateTimerText() {
     dom.timerText.textContent = timeText;
   }
   dom.examTimerText.textContent = timeText;
+  saveExamDraft();
   if (remaining <= 0) {
     stopTimer();
     alert("考试模式时间到。");
@@ -2649,6 +3051,7 @@ function practicePastWrongQuestion(item) {
   state.pastWrongPracticeAnswers = new Map();
   state.pastWrongPracticeSubmissions = new Map();
   state.examSubmitted = false;
+  state.examAbandoned = false;
   stopTimer();
   updateStats();
   showQuestion(findWrongPracticeIndex(item.编号));
@@ -2702,6 +3105,30 @@ function handlePageZoom(event) {
 }
 
 window.addEventListener("wheel", handlePageZoom, { passive: false });
+document.addEventListener("click", (event) => {
+  const image = event.target.closest?.(".question-image");
+  if (image) {
+    openImagePreview(image);
+    return;
+  }
+  if (event.target === dom.imagePreviewModal) {
+    closeImagePreview();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeImagePreview();
+    return;
+  }
+  if ((event.key === "Enter" || event.key === " ") && event.target?.classList?.contains("question-image")) {
+    event.preventDefault();
+    openImagePreview(event.target);
+  }
+});
+window.addEventListener("beforeunload", () => {
+  saveCurrentExamAnswer();
+  saveExamDraft();
+});
 
 dom.applyFilterBtn.addEventListener("click", applyFilters);
 dom.practiceMockBtn.addEventListener("click", () => {
@@ -2744,6 +3171,8 @@ dom.addWrongBtn.addEventListener("click", () => {
       removeCurrentFavoriteQuestion();
     } else if (isWrongPracticeMode()) {
       removeCurrentWrongPracticeQuestion();
+    } else if (currentFavoriteSource() === "past") {
+      addPastWrongQuestion(question, getUserAnswer(question), true);
     } else {
       addWrongQuestion(question, getUserAnswer(question), true);
     }
@@ -2755,6 +3184,7 @@ if (dom.submitExamBtn) {
   dom.submitExamBtn.addEventListener("click", () => submitExamPaper());
 }
 dom.examSubmitBtn.addEventListener("click", () => submitExamPaper());
+dom.examAbandonBtn.addEventListener("click", abandonExamPaper);
 if (dom.exitExamBtn) {
   dom.exitExamBtn.addEventListener("click", exitExam);
 }
@@ -2771,6 +3201,7 @@ dom.pastFavoriteBtn.addEventListener("click", () => showFavoriteList("past"));
 dom.favoriteBtn.addEventListener("click", addCurrentFavorite);
 dom.favoriteReturnBtn.addEventListener("click", returnToFavoriteList);
 dom.examHistoryBtn.addEventListener("click", showExamHistoryHome);
+dom.continueExamBtn.addEventListener("click", restoreExamDraft);
 dom.examHistoryBackBtn.addEventListener("click", returnFromExamHistory);
 dom.examHistoryListBackBtn.addEventListener("click", showExamHistoryHome);
 dom.mockExamHistoryBtn.addEventListener("click", () => showExamHistoryList("mock"));
@@ -2780,6 +3211,9 @@ dom.materialsBackBtn.addEventListener("click", returnFromMaterials);
 dom.materialsCategoryBackBtn.addEventListener("click", showMaterialsHome);
 dom.pptMaterialsBtn.addEventListener("click", () => showMaterialsCategory("ppt", "上课PPT"));
 dom.paperMaterialsBtn.addEventListener("click", () => showMaterialsCategory("papers", "试卷原卷"));
+if (dom.imagePreviewClose) {
+  dom.imagePreviewClose.addEventListener("click", closeImagePreview);
+}
 
 renderMenu().catch((error) => {
   dom.loadStatus.textContent = error.message;
