@@ -1,5 +1,7 @@
 # The-Great-Final-Review
 
+注意仓库中有LFS指针文件，克隆仓库前请确保已经安装了git-lfs!
+
 由于往年试卷资料太少，于是用 ChatGPT 生成题库，用于期末复习。
 
 本应用由 Codex vibe coding 而成。项目一开始是网页端，后来改成 Electron 桌面端，所以主体使用原生 HTML、CSS、JavaScript 编写。
