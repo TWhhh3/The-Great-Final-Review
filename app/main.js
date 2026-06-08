@@ -1,6 +1,7 @@
 const dom = {
   appTitle: document.getElementById("appTitle"),
   loadStatus: document.getElementById("loadStatus"),
+  toastMessage: document.getElementById("toastMessage"),
   scoreboard: document.querySelector(".scoreboard"),
   menuView: document.getElementById("menuView"),
   subjectGrid: document.getElementById("subjectGrid"),
@@ -194,6 +195,8 @@ const state = {
   wrongBookTypeFilter: "",
   pastWrongBookTypeFilter: "",
   wrongPracticeReturnState: null,
+  lastFocusedInput: "",
+  toastTimer: null,
   sessionWrongCount: 0,
   practiceStates: new Map(),
   practiceAnswers: new Map(),
@@ -946,15 +949,59 @@ function updateFavoriteButton(question) {
   dom.favoriteBtn.textContent = favorited ? "已收藏" : "收藏";
 }
 
-function restoreAnswerInputFocus(previousInput) {
-  const input = document.getElementById("answerInput");
-  if (!input) {
+function currentAnswerLocked(question) {
+  if (!question) {
+    return true;
+  }
+  if (state.mode === "exam") {
+    return state.examSubmitted;
+  }
+  return Boolean(isPracticeAnswerMode() && getPracticeSubmission(question));
+}
+
+function syncCurrentInputs(focusTarget = "") {
+  const hasQuestion = Boolean(state.filteredQuestions.length);
+  dom.questionJumpInput.disabled = !hasQuestion;
+  dom.questionJumpInput.readOnly = false;
+  dom.questionJumpInput.style.pointerEvents = "auto";
+
+  const question = currentQuestion();
+  const locked = currentAnswerLocked(question);
+  document.querySelectorAll("input[name='choice']").forEach((input) => {
+    input.disabled = locked;
+    input.style.pointerEvents = "auto";
+  });
+
+  const answerInput = document.getElementById("answerInput");
+  if (answerInput) {
+    answerInput.disabled = locked;
+    answerInput.readOnly = false;
+    answerInput.style.pointerEvents = "auto";
+  }
+
+  const target = focusTarget || state.lastFocusedInput;
+  if (target === "answerInput" && answerInput && !answerInput.disabled) {
+    answerInput.focus({ preventScroll: true });
+  } else if (target === "questionJumpInput" && !dom.questionJumpInput.disabled) {
+    dom.questionJumpInput.focus({ preventScroll: true });
+  }
+}
+
+function showToast(message) {
+  if (!dom.toastMessage) {
     return;
   }
-  ensureEditableExamAnswerInput();
-  if (previousInput && previousInput.id === "answerInput" && !input.disabled && !input.readOnly) {
-    input.focus({ preventScroll: true });
-  }
+  window.clearTimeout(state.toastTimer);
+  dom.toastMessage.textContent = message;
+  dom.toastMessage.classList.add("show");
+  state.toastTimer = window.setTimeout(() => {
+    dom.toastMessage.classList.remove("show");
+  }, 2000);
+}
+
+function setPracticeStatus(message, focusTarget = "") {
+  showToast(message);
+  syncCurrentInputs(focusTarget);
 }
 
 function addCurrentFavorite() {
@@ -962,9 +1009,6 @@ function addCurrentFavorite() {
   if (!question) {
     return;
   }
-  const previousInput = document.activeElement && document.activeElement.id === "answerInput"
-    ? document.activeElement
-    : null;
   const source = currentFavoriteSource();
   const id = field(question, "编号");
   const items = loadFavorites(source);
@@ -975,20 +1019,14 @@ function addCurrentFavorite() {
     saveFavorites(source, items);
     updateFavoriteButton(question);
     dom.favoriteBtn.blur();
-    restoreAnswerInputFocus(previousInput);
-    alert("已取消收藏。");
-    dom.favoriteBtn.blur();
-    restoreAnswerInputFocus(previousInput);
+    setPracticeStatus("已取消收藏");
     return;
   }
   items.unshift(record);
   saveFavorites(source, items);
   updateFavoriteButton(question);
   dom.favoriteBtn.blur();
-  restoreAnswerInputFocus(previousInput);
-  alert(`已收藏到${source === "past" ? "真题" : "模拟题"}收藏区。`);
-  dom.favoriteBtn.blur();
-  restoreAnswerInputFocus(previousInput);
+  setPracticeStatus(`已收藏到${source === "past" ? "真题" : "模拟题"}收藏区`);
 }
 
 function showFavoriteHome() {
@@ -1476,6 +1514,7 @@ function showQuestion(index) {
   renderQuestionStem(field(question, "题干"));
   updateFavoriteButton(question);
   renderAnswerInput(question);
+  syncCurrentInputs();
   renderExamQuestionNav();
   const submission = isPracticeAnswerMode() ? getPracticeSubmission(question) : null;
   if (submission) {
@@ -1753,16 +1792,7 @@ function renderAnswerInput(question) {
 }
 
 function ensureEditableExamAnswerInput() {
-  if (state.mode !== "exam" || state.examSubmitted) {
-    return;
-  }
-  const input = document.getElementById("answerInput");
-  if (!input) {
-    return;
-  }
-  input.disabled = false;
-  input.readOnly = false;
-  input.style.pointerEvents = "auto";
+  syncCurrentInputs();
 }
 
 function currentQuestion() {
@@ -2082,7 +2112,7 @@ function submitAnswer() {
   }
 
   if (!userAnswer) {
-    alert("请先输入或选择答案。");
+    setPracticeStatus("请先输入或选择答案", isOptionAnswerType(field(question, "题型")) ? "" : "answerInput");
     return;
   }
 
@@ -2113,6 +2143,7 @@ function submitAnswer() {
   lockCurrentAnswerInput(question);
   updateStats();
   showResult(question, result);
+  syncCurrentInputs();
 
 }
 
@@ -2131,6 +2162,7 @@ function showReferenceOnly() {
       : "查看答案后可以继续练习下一题。",
   };
   showResult(question, result);
+  syncCurrentInputs();
 }
 
 function showResult(question, result) {
@@ -2238,16 +2270,10 @@ function resetCurrentPool() {
 }
 
 function refocusQuestionJumpInput(selectText = false) {
-  const focusInput = () => {
-    dom.questionJumpInput.disabled = false;
-    dom.questionJumpInput.focus({ preventScroll: true });
-    if (selectText) {
-      dom.questionJumpInput.select();
-    }
-  };
-  focusInput();
-  window.setTimeout(focusInput, 50);
-  window.setTimeout(focusInput, 180);
+  syncCurrentInputs("questionJumpInput");
+  if (selectText && !dom.questionJumpInput.disabled) {
+    dom.questionJumpInput.select();
+  }
 }
 
 function jumpToQuestion() {
@@ -2972,7 +2998,7 @@ function addWrongQuestion(question, userAnswer = "", manual = true) {
   renderWrongBook();
   updateStats();
   if (manual) {
-    alert("已加入错题本。");
+    setPracticeStatus("已加入错题本");
   }
 }
 
@@ -2989,7 +3015,7 @@ function addPastWrongQuestion(question, userAnswer = "", manual = true) {
   renderPastWrongBook();
   updateStats();
   if (manual) {
-    alert("已加入真题错题本。");
+    setPracticeStatus("已加入真题错题本");
   }
 }
 
@@ -3309,6 +3335,14 @@ dom.questionJumpInput.addEventListener("keydown", (event) => {
 dom.questionJumpInput.addEventListener("pointerdown", () => {
   if (state.filteredQuestions.length) {
     dom.questionJumpInput.disabled = false;
+  }
+});
+dom.questionJumpInput.addEventListener("focusin", () => {
+  state.lastFocusedInput = "questionJumpInput";
+});
+dom.answerBox.addEventListener("focusin", (event) => {
+  if (event.target && (event.target.id === "answerInput" || event.target.name === "choice")) {
+    state.lastFocusedInput = "answerInput";
   }
 });
 dom.prevBtn.addEventListener("click", showPrevious);

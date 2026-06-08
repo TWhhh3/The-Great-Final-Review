@@ -47,6 +47,31 @@ body {
   color: #d6e5f2;
 }
 
+.toast-message {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 1000;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 10px 16px;
+  border: 1px solid rgba(31, 95, 139, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.18);
+  color: var(--text);
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -10px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.toast-message.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .scoreboard {
   display: grid;
   grid-template-columns: repeat(4, minmax(72px, 1fr));
