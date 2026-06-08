@@ -193,6 +193,7 @@ const state = {
   pastWrongQuestions: [],
   wrongBookTypeFilter: "",
   pastWrongBookTypeFilter: "",
+  wrongPracticeReturnState: null,
   sessionWrongCount: 0,
   practiceStates: new Map(),
   practiceAnswers: new Map(),
@@ -445,9 +446,9 @@ function showView(viewName) {
 
 function updateExamLayout() {
   const isExam = state.mode === "exam";
-  const isFavorite = isFavoritePracticeMode();
+  const isFocusedPractice = isFavoritePracticeMode() || isWrongPracticeMode();
   dom.questionView.classList.toggle("exam-layout", isExam);
-  dom.questionView.classList.toggle("favorite-layout", isFavorite);
+  dom.questionView.classList.toggle("favorite-layout", isFocusedPractice);
   dom.examToolbar.classList.toggle("hidden", !isExam);
   dom.examNavRow.classList.toggle("hidden", !isExam);
   dom.examQuestionNav.classList.toggle("hidden", !isExam);
@@ -1088,6 +1089,32 @@ function returnToFavoriteList() {
   showFavoriteList(source);
 }
 
+function returnFromWrongPractice() {
+  saveCurrentPracticeAnswer();
+  const returnState = state.wrongPracticeReturnState;
+  state.mode = "practice";
+  state.filteredQuestions = getFilteredQuestions();
+  const returnIndex = returnState?.questionId ? findQuestionIndex(returnState.questionId) : -1;
+  state.currentIndex = returnIndex >= 0 ? returnIndex : Math.min(returnState?.index || 0, Math.max(0, state.filteredQuestions.length - 1));
+  state.wrongPracticeAnswers = new Map();
+  state.wrongPracticeSubmissions = new Map();
+  state.pastWrongPracticeAnswers = new Map();
+  state.pastWrongPracticeSubmissions = new Map();
+  state.wrongPracticeReturnState = null;
+  updateStats();
+  showView("question");
+  updatePracticeLoadStatus();
+  showQuestion(state.currentIndex);
+}
+
+function returnFromFocusedPractice() {
+  if (isWrongPracticeMode()) {
+    returnFromWrongPractice();
+    return;
+  }
+  returnToFavoriteList();
+}
+
 function removeCurrentFavoriteQuestion() {
   const question = currentQuestion();
   if (!question || !isFavoritePracticeMode()) {
@@ -1403,7 +1430,8 @@ function showQuestion(index) {
   dom.examAbandonBtn.classList.toggle("hidden", state.viewingExamHistory || state.examSubmitted);
   dom.examExitBtn.textContent = state.viewingExamHistory ? "返回" : "退出考试";
   dom.submitBtn.textContent = state.mode === "exam" ? "保存答案" : "提交答案";
-  dom.favoriteReturnBtn.classList.toggle("hidden", !isFavoritePracticeMode());
+  dom.favoriteReturnBtn.classList.toggle("hidden", !(isFavoritePracticeMode() || isWrongPracticeMode()));
+  dom.favoriteReturnBtn.textContent = "返回";
   dom.submitBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
   dom.showAnswerBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
   dom.prevBtn.classList.toggle("hidden", state.mode === "exam" && state.examSubmitted);
@@ -3139,6 +3167,11 @@ function renderWrongBookList(items, listDom, emptyText, practiceHandler, removeH
 }
 
 function practiceWrongQuestion(item) {
+  const returnQuestion = state.mode === "practice" ? currentQuestion() : null;
+  state.wrongPracticeReturnState = {
+    index: state.currentIndex,
+    questionId: returnQuestion ? field(returnQuestion, "编号") : "",
+  };
   state.mode = "wrongPractice";
   stopTimer();
   state.filteredQuestions = filterWrongBookItems(state.wrongQuestions, state.wrongBookTypeFilter);
@@ -3148,10 +3181,17 @@ function practiceWrongQuestion(item) {
   state.wrongPracticeAnswers = new Map();
   state.wrongPracticeSubmissions = new Map();
   updateStats();
+  dom.loadStatus.textContent = "错题重做";
+  showView("question");
   showQuestion(findWrongPracticeIndex(item.编号));
 }
 
 function practicePastWrongQuestion(item) {
+  const returnQuestion = state.mode === "practice" ? currentQuestion() : null;
+  state.wrongPracticeReturnState = {
+    index: state.currentIndex,
+    questionId: returnQuestion ? field(returnQuestion, "编号") : "",
+  };
   state.mode = "pastWrongPractice";
   state.examSource = "past";
   state.filteredQuestions = filterWrongBookItems(state.pastWrongQuestions, state.pastWrongBookTypeFilter);
@@ -3164,6 +3204,8 @@ function practicePastWrongQuestion(item) {
   state.examAbandoned = false;
   stopTimer();
   updateStats();
+  dom.loadStatus.textContent = "错题重做";
+  showView("question");
   showQuestion(findWrongPracticeIndex(item.编号));
 }
 
@@ -3311,7 +3353,7 @@ dom.favoriteListBackBtn.addEventListener("click", showFavoriteHome);
 dom.mockFavoriteBtn.addEventListener("click", () => showFavoriteList("mock"));
 dom.pastFavoriteBtn.addEventListener("click", () => showFavoriteList("past"));
 dom.favoriteBtn.addEventListener("click", addCurrentFavorite);
-dom.favoriteReturnBtn.addEventListener("click", returnToFavoriteList);
+dom.favoriteReturnBtn.addEventListener("click", returnFromFocusedPractice);
 dom.examHistoryBtn.addEventListener("click", showExamHistoryHome);
 dom.continueExamBtn.addEventListener("click", restoreExamDraft);
 dom.examHistoryBackBtn.addEventListener("click", returnFromExamHistory);
