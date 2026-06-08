@@ -30,6 +30,7 @@ const dom = {
   mockFavoriteBtn: document.getElementById("mockFavoriteBtn"),
   pastFavoriteBtn: document.getElementById("pastFavoriteBtn"),
   favoriteListTitle: document.getElementById("favoriteListTitle"),
+  favoriteTypeFilters: document.getElementById("favoriteTypeFilters"),
   favoriteList: document.getElementById("favoriteList"),
   materialsView: document.getElementById("materialsView"),
   materialsHome: document.getElementById("materialsHome"),
@@ -83,9 +84,11 @@ const dom = {
   exitExamBtn: document.getElementById("exitExamBtn"),
   clearWrongBtn: document.getElementById("clearWrongBtn"),
   wrongBookCountText: document.getElementById("wrongBookCountText"),
+  wrongTypeFilters: document.getElementById("wrongTypeFilters"),
   wrongList: document.getElementById("wrongList"),
   clearPastWrongBtn: document.getElementById("clearPastWrongBtn"),
   pastWrongBookCountText: document.getElementById("pastWrongBookCountText"),
+  pastWrongTypeFilters: document.getElementById("pastWrongTypeFilters"),
   pastWrongList: document.getElementById("pastWrongList"),
   qidText: document.getElementById("qidText"),
   chapterText: document.getElementById("chapterText"),
@@ -182,11 +185,14 @@ const state = {
   mode: "practice",
   practiceSource: "mock",
   favoriteSource: "mock",
+  favoriteTypeFilters: { mock: "", past: "" },
   examSource: "mock",
   currentSubject: null,
   subjectStatuses: new Map(),
   wrongQuestions: [],
   pastWrongQuestions: [],
+  wrongBookTypeFilter: "",
+  pastWrongBookTypeFilter: "",
   sessionWrongCount: 0,
   practiceStates: new Map(),
   practiceAnswers: new Map(),
@@ -211,6 +217,17 @@ const state = {
 
 function field(question, name) {
   return question[name] ?? "";
+}
+
+function cleanMetaText(value) {
+  return String(value ?? "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+}
+
+function setMetaBadge(element, value, prefix = "") {
+  const text = cleanMetaText(value);
+  element.textContent = text ? `${prefix}${text}` : "";
+  element.title = text ? element.textContent : "";
+  element.classList.toggle("hidden", !text);
 }
 
 function isChoiceType(type) {
@@ -928,11 +945,25 @@ function updateFavoriteButton(question) {
   dom.favoriteBtn.textContent = favorited ? "已收藏" : "收藏";
 }
 
+function restoreAnswerInputFocus(previousInput) {
+  const input = document.getElementById("answerInput");
+  if (!input) {
+    return;
+  }
+  ensureEditableExamAnswerInput();
+  if (previousInput && previousInput.id === "answerInput" && !input.disabled && !input.readOnly) {
+    input.focus({ preventScroll: true });
+  }
+}
+
 function addCurrentFavorite() {
   const question = currentQuestion();
   if (!question) {
     return;
   }
+  const previousInput = document.activeElement && document.activeElement.id === "answerInput"
+    ? document.activeElement
+    : null;
   const source = currentFavoriteSource();
   const id = field(question, "编号");
   const items = loadFavorites(source);
@@ -942,13 +973,21 @@ function addCurrentFavorite() {
     items.splice(existingIndex, 1);
     saveFavorites(source, items);
     updateFavoriteButton(question);
+    dom.favoriteBtn.blur();
+    restoreAnswerInputFocus(previousInput);
     alert("已取消收藏。");
+    dom.favoriteBtn.blur();
+    restoreAnswerInputFocus(previousInput);
     return;
   }
   items.unshift(record);
   saveFavorites(source, items);
   updateFavoriteButton(question);
+  dom.favoriteBtn.blur();
+  restoreAnswerInputFocus(previousInput);
   alert(`已收藏到${source === "past" ? "真题" : "模拟题"}收藏区。`);
+  dom.favoriteBtn.blur();
+  restoreAnswerInputFocus(previousInput);
 }
 
 function showFavoriteHome() {
@@ -981,12 +1020,27 @@ function showFavoriteList(source) {
   dom.favoriteList.innerHTML = "";
 
   const items = loadFavorites(source);
+  let activeType = state.favoriteTypeFilters[source] || "";
+  if (activeType && !itemTypes(items).includes(activeType)) {
+    activeType = "";
+    state.favoriteTypeFilters[source] = "";
+  }
+  renderTypeFilters(items, dom.favoriteTypeFilters, activeType, (type) => {
+    state.favoriteTypeFilters[source] = type;
+    showFavoriteList(source);
+  });
   if (!items.length) {
     dom.favoriteList.textContent = "暂无收藏题目";
     return;
   }
 
-  items.forEach((item, index) => {
+  const filteredItems = filterItemsByType(items, activeType);
+  if (!filteredItems.length) {
+    dom.favoriteList.textContent = "暂无该题型收藏题目";
+    return;
+  }
+
+  filteredItems.forEach((item, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "favorite-list-item";
@@ -997,7 +1051,7 @@ function showFavoriteList(source) {
 }
 
 function openFavoriteQuestion(source, index) {
-  const items = loadFavorites(source);
+  const items = filterItemsByType(loadFavorites(source), state.favoriteTypeFilters[source] || "");
   if (!items.length) {
     showFavoriteList(source);
     return;
@@ -1363,12 +1417,11 @@ function showQuestion(index) {
     : "加入错题本";
 
   if (!total) {
-    dom.qidText.textContent = "-";
-    dom.chapterText.textContent = "-";
-    dom.typeText.textContent = "-";
-    dom.difficultyText.textContent = "-";
-    dom.questionSourceText.textContent = "-";
-    dom.questionSourceText.classList.add("hidden");
+    setMetaBadge(dom.qidText, "-");
+    setMetaBadge(dom.chapterText, "-");
+    setMetaBadge(dom.typeText, "-");
+    setMetaBadge(dom.difficultyText, "");
+    setMetaBadge(dom.questionSourceText, "");
     syncQuestionJumpInput("");
     dom.questionStem.textContent = "没有符合条件的题目";
     dom.optionsBox.innerHTML = "";
@@ -1386,16 +1439,12 @@ function showQuestion(index) {
   if (examTitle) {
     examTitle.textContent = currentExamTitle();
   }
-  dom.qidText.textContent = displayQuestionId(question);
+  setMetaBadge(dom.qidText, displayQuestionId(question));
   syncQuestionJumpInput(state.mode === "exam" ? String(question["考试编号"] || safeIndex + 1) : field(question, "编号"));
-  dom.chapterText.textContent = field(question, "章节");
-  dom.typeText.textContent = field(question, "题型");
-  const difficulty = field(question, "难度");
-  dom.difficultyText.textContent = difficulty;
-  dom.difficultyText.classList.toggle("hidden", !difficulty);
-  const questionSource = field(question, "题目来源");
-  dom.questionSourceText.textContent = questionSource ? `来源：${questionSource}` : "-";
-  dom.questionSourceText.classList.toggle("hidden", !questionSource);
+  setMetaBadge(dom.chapterText, field(question, "章节"));
+  setMetaBadge(dom.typeText, field(question, "题型"));
+  setMetaBadge(dom.difficultyText, field(question, "难度"));
+  setMetaBadge(dom.questionSourceText, field(question, "题目来源"), "来源：");
   renderQuestionStem(field(question, "题干"));
   updateFavoriteButton(question);
   renderAnswerInput(question);
@@ -2959,11 +3008,72 @@ function removeCurrentWrongPracticeQuestion() {
 }
 
 function renderWrongBook() {
-  renderWrongBookList(state.wrongQuestions, dom.wrongList, "暂无错题", practiceWrongQuestion, removeWrongQuestion);
+  renderWrongBookFilters(state.wrongQuestions, dom.wrongTypeFilters, state.wrongBookTypeFilter, (type) => {
+    state.wrongBookTypeFilter = type;
+    renderWrongBook();
+  });
+  const items = filterWrongBookItems(state.wrongQuestions, state.wrongBookTypeFilter);
+  renderWrongBookList(items, dom.wrongList, state.wrongBookTypeFilter ? "暂无该题型错题" : "暂无错题", practiceWrongQuestion, removeWrongQuestion);
 }
 
 function renderPastWrongBook() {
-  renderWrongBookList(state.pastWrongQuestions, dom.pastWrongList, "暂无真题错题", practicePastWrongQuestion, removePastWrongQuestion);
+  renderWrongBookFilters(state.pastWrongQuestions, dom.pastWrongTypeFilters, state.pastWrongBookTypeFilter, (type) => {
+    state.pastWrongBookTypeFilter = type;
+    renderPastWrongBook();
+  });
+  const items = filterWrongBookItems(state.pastWrongQuestions, state.pastWrongBookTypeFilter);
+  renderWrongBookList(items, dom.pastWrongList, state.pastWrongBookTypeFilter ? "暂无该题型真题错题" : "暂无真题错题", practicePastWrongQuestion, removePastWrongQuestion);
+}
+
+function itemType(item) {
+  return cleanMetaText(item.题型) || "未分类";
+}
+
+function itemTypes(items) {
+  return [...new Set(items.map(itemType))];
+}
+
+function filterItemsByType(items, type) {
+  return type ? items.filter((item) => itemType(item) === type) : items;
+}
+
+function renderTypeFilters(items, filterDom, activeType, selectHandler) {
+  const types = itemTypes(items);
+  if (activeType && !types.includes(activeType)) {
+    activeType = "";
+    if (filterDom === dom.wrongTypeFilters) {
+      state.wrongBookTypeFilter = "";
+    } else if (filterDom === dom.pastWrongTypeFilters) {
+      state.pastWrongBookTypeFilter = "";
+    } else {
+      state.favoriteTypeFilters[state.favoriteSource || "mock"] = "";
+    }
+  }
+
+  filterDom.innerHTML = "";
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.textContent = "全部题型";
+  allButton.classList.toggle("active", !activeType);
+  allButton.addEventListener("click", () => selectHandler(""));
+  filterDom.appendChild(allButton);
+
+  types.forEach((type) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = type;
+    button.classList.toggle("active", activeType === type);
+    button.addEventListener("click", () => selectHandler(type));
+    filterDom.appendChild(button);
+  });
+}
+
+function filterWrongBookItems(items, type) {
+  return filterItemsByType(items, type);
+}
+
+function renderWrongBookFilters(items, filterDom, activeType, selectHandler) {
+  renderTypeFilters(items, filterDom, activeType, selectHandler);
 }
 
 function renderWrongBookList(items, listDom, emptyText, practiceHandler, removeHandler) {
@@ -3031,7 +3141,7 @@ function renderWrongBookList(items, listDom, emptyText, practiceHandler, removeH
 function practiceWrongQuestion(item) {
   state.mode = "wrongPractice";
   stopTimer();
-  state.filteredQuestions = [...state.wrongQuestions];
+  state.filteredQuestions = filterWrongBookItems(state.wrongQuestions, state.wrongBookTypeFilter);
   state.score = 0;
   state.answered = 0;
   state.sessionWrongCount = 0;
@@ -3044,7 +3154,7 @@ function practiceWrongQuestion(item) {
 function practicePastWrongQuestion(item) {
   state.mode = "pastWrongPractice";
   state.examSource = "past";
-  state.filteredQuestions = [...state.pastWrongQuestions];
+  state.filteredQuestions = filterWrongBookItems(state.pastWrongQuestions, state.pastWrongBookTypeFilter);
   state.score = 0;
   state.answered = 0;
   state.sessionWrongCount = 0;
@@ -3070,6 +3180,7 @@ function clearWrongBook() {
     return;
   }
   state.wrongQuestions = [];
+  state.wrongBookTypeFilter = "";
   saveWrongBook();
   renderWrongBook();
 }
@@ -3082,6 +3193,7 @@ function clearPastWrongBook() {
     return;
   }
   state.pastWrongQuestions = [];
+  state.pastWrongBookTypeFilter = "";
   savePastWrongBook();
   renderPastWrongBook();
 }
