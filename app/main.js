@@ -195,6 +195,7 @@ const state = {
   wrongBookTypeFilter: "",
   pastWrongBookTypeFilter: "",
   wrongPracticeReturnState: null,
+  favoriteReturnState: null,
   lastFocusedInput: "",
   toastTimer: null,
   sessionWrongCount: 0,
@@ -1033,6 +1034,14 @@ function showFavoriteHome() {
   if (!state.currentSubject) {
     return;
   }
+  if (state.mode === "practice" && !dom.questionView.classList.contains("hidden")) {
+    saveCurrentPracticeAnswer();
+    const question = currentQuestion();
+    state.favoriteReturnState = {
+      index: state.currentIndex,
+      questionId: question ? field(question, "编号") : "",
+    };
+  }
   showView("favorite");
   dom.favoriteHome.classList.remove("hidden");
   dom.favoriteListPage.classList.add("hidden");
@@ -1042,6 +1051,15 @@ function showFavoriteHome() {
 
 function returnFromFavorite() {
   if (state.currentSubject) {
+    const returnState = state.favoriteReturnState;
+    state.mode = "practice";
+    state.filteredQuestions = getFilteredQuestions();
+    const returnIndex = returnState?.questionId ? findQuestionIndex(returnState.questionId) : -1;
+    state.currentIndex = returnIndex >= 0 ? returnIndex : Math.min(returnState?.index || 0, Math.max(0, state.filteredQuestions.length - 1));
+    state.favoritePracticeAnswers = new Map();
+    state.favoritePracticeSubmissions = new Map();
+    state.favoriteReturnState = null;
+    updateStats();
     showView("question");
     dom.appTitle.textContent = `${state.currentSubject.name}题库自测`;
     dom.loadStatus.textContent = `已加载 ${questionCountText(state.allQuestions.length, state.pastPracticeQuestions.length)}`;
