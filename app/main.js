@@ -115,7 +115,10 @@ const dom = {
   imagePreviewModal: document.getElementById("imagePreviewModal"),
   imagePreviewImg: document.getElementById("imagePreviewImg"),
   imagePreviewCaption: document.getElementById("imagePreviewCaption"),
+  imagePreviewCount: document.getElementById("imagePreviewCount"),
   imagePreviewClose: document.getElementById("imagePreviewClose"),
+  imagePreviewPrev: document.getElementById("imagePreviewPrev"),
+  imagePreviewNext: document.getElementById("imagePreviewNext"),
 };
 
 const subjects = [
@@ -174,6 +177,9 @@ const zoomStep = 0.08;
 const minZoomFactor = 0.7;
 const maxZoomFactor = 1.6;
 let zoomFactor = 1;
+let imagePreviewZoom = 1;
+let imagePreviewItems = [];
+let imagePreviewIndex = 0;
 
 const state = {
   allQuestions: [],
@@ -1657,18 +1663,40 @@ function openImagePreview(image) {
   if (!dom.imagePreviewModal || !dom.imagePreviewImg) {
     return;
   }
-  const src = image.dataset.previewSrc || image.currentSrc || image.src;
-  const title = image.dataset.previewTitle || image.alt || "";
-  dom.imagePreviewImg.src = src;
-  dom.imagePreviewImg.alt = title || "图片预览";
-  if (dom.imagePreviewCaption) {
-    dom.imagePreviewCaption.textContent = title;
-  }
+  imagePreviewItems = [...document.querySelectorAll(".question-image")].map((item) => ({
+    src: item.dataset.previewSrc || item.currentSrc || item.src,
+    title: item.dataset.previewTitle || item.alt || "",
+  }));
+  imagePreviewIndex = Math.max(0, [...document.querySelectorAll(".question-image")].indexOf(image));
+  showImagePreviewAt(imagePreviewIndex);
   dom.imagePreviewModal.classList.remove("hidden");
   document.body.classList.add("preview-open");
   if (dom.imagePreviewClose) {
     dom.imagePreviewClose.focus();
   }
+}
+
+function showImagePreviewAt(index) {
+  if (!imagePreviewItems.length || !dom.imagePreviewImg) {
+    return;
+  }
+  imagePreviewIndex = (index + imagePreviewItems.length) % imagePreviewItems.length;
+  const item = imagePreviewItems[imagePreviewIndex];
+  imagePreviewZoom = 1;
+  dom.imagePreviewImg.src = item.src;
+  dom.imagePreviewImg.alt = item.title || "图片预览";
+  applyImagePreviewZoom();
+  if (dom.imagePreviewCaption) {
+    dom.imagePreviewCaption.textContent = item.title;
+  }
+  if (dom.imagePreviewCount) {
+    dom.imagePreviewCount.textContent = imagePreviewItems.length > 1
+      ? `${imagePreviewIndex + 1} / ${imagePreviewItems.length}`
+      : "";
+  }
+  const hasMultipleImages = imagePreviewItems.length > 1;
+  dom.imagePreviewPrev?.classList.toggle("hidden", !hasMultipleImages);
+  dom.imagePreviewNext?.classList.toggle("hidden", !hasMultipleImages);
 }
 
 function closeImagePreview() {
@@ -1679,7 +1707,39 @@ function closeImagePreview() {
   document.body.classList.remove("preview-open");
   if (dom.imagePreviewImg) {
     dom.imagePreviewImg.removeAttribute("src");
+    dom.imagePreviewImg.style.removeProperty("width");
   }
+  imagePreviewItems = [];
+  imagePreviewIndex = 0;
+  imagePreviewZoom = 1;
+}
+
+function showPreviousPreviewImage() {
+  showImagePreviewAt(imagePreviewIndex - 1);
+}
+
+function showNextPreviewImage() {
+  showImagePreviewAt(imagePreviewIndex + 1);
+}
+
+function applyImagePreviewZoom() {
+  if (!dom.imagePreviewImg) {
+    return;
+  }
+  dom.imagePreviewImg.style.width = `${imagePreviewZoom * 100}%`;
+}
+
+function handleImagePreviewWheel(event) {
+  if (!dom.imagePreviewModal || dom.imagePreviewModal.classList.contains("hidden")) {
+    return;
+  }
+  if (!event.ctrlKey) {
+    return;
+  }
+  event.preventDefault();
+  const direction = event.deltaY < 0 ? 1 : -1;
+  imagePreviewZoom = Math.max(0.3, Math.min(4, Number((imagePreviewZoom + direction * 0.12).toFixed(2))));
+  applyImagePreviewZoom();
 }
 
 function renderRichContent(container, text) {
@@ -3293,6 +3353,9 @@ function returnToMenu() {
 }
 
 function handlePageZoom(event) {
+  if (dom.imagePreviewModal && !dom.imagePreviewModal.classList.contains("hidden")) {
+    return;
+  }
   if (!event.ctrlKey || !window.courseApi || typeof window.courseApi.setZoomFactor !== "function") {
     return;
   }
@@ -3303,6 +3366,9 @@ function handlePageZoom(event) {
 }
 
 window.addEventListener("wheel", handlePageZoom, { passive: false });
+if (dom.imagePreviewModal) {
+  dom.imagePreviewModal.addEventListener("wheel", handleImagePreviewWheel, { passive: false });
+}
 document.addEventListener("click", (event) => {
   const image = event.target.closest?.(".question-image");
   if (image) {
@@ -3317,6 +3383,18 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeImagePreview();
     return;
+  }
+  if (dom.imagePreviewModal && !dom.imagePreviewModal.classList.contains("hidden")) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      showPreviousPreviewImage();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      showNextPreviewImage();
+      return;
+    }
   }
   if ((event.key === "Enter" || event.key === " ") && event.target?.classList?.contains("question-image")) {
     event.preventDefault();
@@ -3419,6 +3497,12 @@ dom.pptMaterialsBtn.addEventListener("click", () => showMaterialsCategory("ppt",
 dom.paperMaterialsBtn.addEventListener("click", () => showMaterialsCategory("papers", "试卷原卷"));
 if (dom.imagePreviewClose) {
   dom.imagePreviewClose.addEventListener("click", closeImagePreview);
+}
+if (dom.imagePreviewPrev) {
+  dom.imagePreviewPrev.addEventListener("click", showPreviousPreviewImage);
+}
+if (dom.imagePreviewNext) {
+  dom.imagePreviewNext.addEventListener("click", showNextPreviewImage);
 }
 
 renderMenu().catch((error) => {
