@@ -44,7 +44,12 @@ def clean_value(value: str) -> str:
         lines.pop(0)
     while lines and not lines[-1].strip():
         lines.pop()
-    return "\n".join(lines).strip()
+    text = "\n".join(lines).strip()
+    return re.sub(r"\\cdots\s+ight\)", r"\\cdots\\right)", text)
+
+
+def clean_option(value: str) -> str:
+    return re.sub(r"^\s*-\s*(?=[A-Z][\.\．、])", "", value.strip())
 
 
 def parse_block(default_id: str, body: str, source_name: str, source_type: str) -> dict:
@@ -75,14 +80,14 @@ def parse_block(default_id: str, body: str, source_name: str, source_type: str) 
             in_options = name == "选项"
             if in_options:
                 if value and value not in {"无", "见题干"}:
-                    options.append(value)
+                    options.append(clean_option(value))
                 continue
             current_name = name
             current_lines = [value]
             continue
 
         if in_options and option_match:
-            options.append(f"{option_match.group(1)}. {option_match.group(2).strip()}")
+            options.append(clean_option(f"{option_match.group(1)}. {option_match.group(2).strip()}"))
             continue
 
         if current_name:

@@ -7,6 +7,7 @@ const materialsDir = path.join(__dirname, "..", "materials");
 const materialSubjects = {
   microcomputer: "microcomputer",
   sensor_signal: "sensor_signal",
+  manufacturing: "manufacturing",
 };
 const materialCategories = {
   ppt: "上课PPT",

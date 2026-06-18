@@ -166,11 +166,20 @@ const subjectExamPlans = {
     { label: "简答题", count: 4, match: (type) => isShortAnswerType(type) },
     { label: "计算题", count: 5, match: (type) => isCalculationType(type) },
   ],
+  manufacturing: [
+    { label: "选择题", count: 30, match: (type) => isChoiceType(type) },
+    { label: "判断题", count: 20, match: (type) => isJudgeType(type) },
+    { label: "填空题", count: 3, match: (type) => isFillType(type) },
+    { label: "简答题", count: 6, match: (type) => isShortAnswerType(type) },
+    { label: "计算题", count: 2, match: (type) => isCalculationType(type) },
+    { label: "工艺题", count: 1, match: (type) => String(type).includes("工艺") },
+  ],
 };
 
 const pastExamSources = {
   microcomputer: "data/past_exams_microcomputer.json",
   sensor_signal: "data/past_exams_sensor_signal.json",
+  manufacturing: "data/past_exams_manufacturing.json",
 };
 
 const zoomStep = 0.08;
@@ -1567,6 +1576,9 @@ function escapeHtml(value) {
 
 function resolveImageSource(src) {
   const clean = String(src).trim().replace(/\\/g, "/").split("#", 1)[0].split("?", 1)[0];
+  if (clean.startsWith("media/manufacturing/")) {
+    return `data/${clean}`.replace(/\.wmf$/i, ".png");
+  }
   if (state.currentSubject && state.currentSubject.id === "sensor_signal" && clean.startsWith("media/")) {
     const relativePath = clean
       .replace(/^media\//, "")
