@@ -1335,14 +1335,18 @@ function updatePracticeLoadStatus() {
   dom.loadStatus.textContent = `已加载 ${count} 道${practiceSourceLabel()}`;
 }
 
-async function switchPracticeSource(source, session = null, keepCombinedStatus = false) {
-  saveCurrentPracticeAnswer();
-  saveCurrentExamAnswer();
+async function switchPracticeSource(source, session = null, keepCombinedStatus = false, saveCurrent = true) {
+  if (saveCurrent) {
+    saveCurrentPracticeAnswer();
+    saveCurrentExamAnswer();
+    saveSubjectSession();
+  }
   state.mode = "practice";
   state.examAnswers = new Map();
   state.examSubmitted = false;
   state.examAbandoned = false;
   stopTimer();
+  const targetSession = session || getSavedPracticeSourceSession(source);
   state.practiceSource = source;
 
   if (source === "past") {
@@ -1354,11 +1358,11 @@ async function switchPracticeSource(source, session = null, keepCombinedStatus =
   }
 
   refreshPracticeFilters();
-  if (session) {
-    setSelectValueIfExists(dom.chapterFilter, session.chapter);
-    setSelectValueIfExists(dom.typeFilter, session.type);
-    setSelectValueIfExists(dom.questionSourceFilter, session.questionSource);
-    setSelectValueIfExists(dom.difficultyFilter, session.difficulty);
+  if (targetSession) {
+    setSelectValueIfExists(dom.chapterFilter, targetSession.chapter);
+    setSelectValueIfExists(dom.typeFilter, targetSession.type);
+    setSelectValueIfExists(dom.questionSourceFilter, targetSession.questionSource);
+    setSelectValueIfExists(dom.difficultyFilter, targetSession.difficulty);
   }
   state.filteredQuestions = getFilteredQuestions();
   if (keepCombinedStatus) {
@@ -1366,8 +1370,8 @@ async function switchPracticeSource(source, session = null, keepCombinedStatus =
   } else {
     updatePracticeLoadStatus();
   }
-  const restoredIndex = findQuestionIndex(session?.questionId);
-  const fallbackIndex = Number.isInteger(session?.index) ? session.index : 0;
+  const restoredIndex = findQuestionIndex(targetSession?.questionId);
+  const fallbackIndex = Number.isInteger(targetSession?.index) ? targetSession.index : 0;
   showQuestion(restoredIndex >= 0 ? restoredIndex : fallbackIndex);
 }
 
@@ -1375,14 +1379,37 @@ function subjectSessionKey() {
   return state.currentSubject ? `subjectSession:${state.currentSubject.id}` : "";
 }
 
-function saveSubjectSession() {
+function readSubjectSession() {
   const key = subjectSessionKey();
-  if (!key || state.mode !== "practice") {
-    return;
+  if (!key) {
+    return { practiceSource: "mock", sources: {} };
   }
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
+    if (!saved) {
+      return { practiceSource: "mock", sources: {} };
+    }
+    if (saved.sources) {
+      return {
+        practiceSource: saved.practiceSource === "past" ? "past" : "mock",
+        sources: saved.sources || {},
+      };
+    }
+    const source = saved.practiceSource === "past" ? "past" : "mock";
+    return {
+      practiceSource: source,
+      sources: {
+        [source]: saved,
+      },
+    };
+  } catch {
+    return { practiceSource: "mock", sources: {} };
+  }
+}
 
+function currentPracticeSession() {
   const question = currentQuestion();
-  const session = {
+  return {
     practiceSource: state.practiceSource,
     chapter: dom.chapterFilter.value,
     type: dom.typeFilter.value,
@@ -1391,21 +1418,30 @@ function saveSubjectSession() {
     questionId: question ? field(question, "编号") : "",
     index: state.currentIndex,
   };
-  localStorage.setItem(key, JSON.stringify(session));
+}
+
+function getSavedPracticeSourceSession(source) {
+  const saved = readSubjectSession();
+  return saved.sources?.[source] || null;
+}
+
+function saveSubjectSession() {
+  const key = subjectSessionKey();
+  if (!key || state.mode !== "practice") {
+    return;
+  }
+
+  const saved = readSubjectSession();
+  saved.practiceSource = state.practiceSource;
+  saved.sources = saved.sources || {};
+  saved.sources[state.practiceSource] = currentPracticeSession();
+  localStorage.setItem(key, JSON.stringify(saved));
 }
 
 async function restoreSubjectSession(keepCombinedStatus = false) {
-  let session = null;
-  const key = subjectSessionKey();
-  if (key) {
-    try {
-      session = JSON.parse(localStorage.getItem(key) || "null");
-    } catch {
-      session = null;
-    }
-  }
-
-  await switchPracticeSource(session?.practiceSource === "past" ? "past" : "mock", session, keepCombinedStatus);
+  const saved = readSubjectSession();
+  const source = saved.practiceSource === "past" ? "past" : "mock";
+  await switchPracticeSource(source, saved.sources?.[source] || null, keepCombinedStatus, false);
 }
 
 function setSelectValueIfExists(select, value) {
@@ -1808,18 +1844,18 @@ function renderAnswerInput(question) {
       const input = document.createElement("input");
       input.type = isMultiple ? "checkbox" : "radio";
       input.name = "choice";
-      input.value = optionText.trim().slice(0, 1).toUpperCase();
+      input.value = optionValueForQuestion(question, optionText);
       input.disabled = (state.mode === "exam" && state.examSubmitted) || Boolean(practiceSubmission);
-      if (practiceSubmission && choiceAnswerIncludes(practiceSubmission.userAnswer, input.value)) {
+      if (practiceSubmission && answerMatchesOption(question, practiceSubmission.userAnswer, input.value)) {
         input.checked = true;
       }
-      if (!practiceSubmission && choiceAnswerIncludes(practiceAnswer, input.value)) {
+      if (!practiceSubmission && answerMatchesOption(question, practiceAnswer, input.value)) {
         input.checked = true;
       }
       if (isPracticeAnswerMode() && !practiceSubmission) {
         input.addEventListener("change", saveCurrentPracticeAnswer);
       }
-      if (state.mode === "exam" && choiceAnswerIncludes(getExamAnswer(question), input.value)) {
+      if (state.mode === "exam" && answerMatchesOption(question, getExamAnswer(question), input.value)) {
         input.checked = true;
       }
       if (state.mode === "exam") {
@@ -2023,8 +2059,30 @@ function parseChoiceLetters(value) {
   return [...new Set(String(value).toUpperCase().match(/[A-Z]/g) || [])].sort();
 }
 
-function choiceAnswerIncludes(answer, value) {
-  return parseChoiceLetters(answer).includes(String(value).toUpperCase());
+function optionValueForQuestion(question, optionText) {
+  const type = field(question, "题型");
+  const text = String(optionText || "").trim();
+  if (isJudgeType(type)) {
+    return normalizeJudgeAnswer(text);
+  }
+  const letter = text.match(/^\s*[-（(]*\s*([A-Z])\s*[\.\．、)）]/i)
+    || text.match(/^\s*([A-Z])\s+/i);
+  return letter ? letter[1].toUpperCase() : text.slice(0, 1).toUpperCase();
+}
+
+function optionValuesFromAnswer(question, answer) {
+  if (!String(answer || "").trim()) {
+    return [];
+  }
+  if (isJudgeType(field(question, "题型"))) {
+    const value = normalizeJudgeAnswer(answer);
+    return value ? [value] : [];
+  }
+  return parseChoiceLetters(answer);
+}
+
+function answerMatchesOption(question, answer, value) {
+  return optionValuesFromAnswer(question, answer).includes(optionValueForQuestion(question, value));
 }
 
 function normalizeChineseAnswer(value) {
@@ -2035,17 +2093,27 @@ function normalizeChineseAnswer(value) {
 }
 
 function normalizeJudgeAnswer(value) {
-  const text = normalizeChineseAnswer(value);
+  const raw = String(value).trim();
+  if (!raw) {
+    return "";
+  }
+  if (/[\u221A\u2713\u2714]/.test(raw)) {
+    return "\u221A";
+  }
+  if (/[\u00D7\u2715\u2716]/.test(raw)) {
+    return "\u00D7";
+  }
+  const text = normalizeChineseAnswer(raw);
   if (!text) {
     return "";
   }
-  if (text.includes("√") || text.includes("对") || text.includes("正确") || text === "true" || text === "t") {
-    return "√";
+  if (text.includes("\u221A") || text.includes("对") || text.includes("正确") || text === "true" || text === "t") {
+    return "\u221A";
   }
-  if (text.includes("×") || text.includes("错") || text.includes("错误") || text === "false" || text === "f") {
-    return "×";
+  if (text.includes("\u00D7") || text.includes("错") || text.includes("错误") || text === "false" || text === "f" || text === "x") {
+    return "\u00D7";
   }
-  return String(value).trim().slice(0, 1);
+  return raw.slice(0, 1);
 }
 
 function normalizeProgram(value) {
