@@ -602,6 +602,15 @@ button:disabled {
   padding: 0 14px;
   text-align: left;
   background: #fbfcfe;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.favorite-list-item small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .question-panel {
@@ -851,6 +860,30 @@ button:disabled {
   background: rgba(31, 95, 139, 0.16);
   border-color: rgba(31, 95, 139, 0.45);
   color: var(--brand-dark);
+}
+
+.question-note-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.question-note-box label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.question-note-box textarea {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid #d7dee8;
+  border-radius: 6px;
+  background: #fbfcfe;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
 }
 
 .question-stem p {

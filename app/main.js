@@ -112,6 +112,7 @@ const dom = {
   explanationText: document.getElementById("explanationText"),
   sourceText: document.getElementById("sourceText"),
   selfReviewTip: document.getElementById("selfReviewTip"),
+  questionNoteInput: document.getElementById("questionNoteInput"),
   imagePreviewModal: document.getElementById("imagePreviewModal"),
   imagePreviewImg: document.getElementById("imagePreviewImg"),
   imagePreviewCaption: document.getElementById("imagePreviewCaption"),
@@ -928,6 +929,117 @@ function saveFavorites(source, items) {
   localStorage.setItem(favoriteKey(source), JSON.stringify(items));
 }
 
+function questionRemarkKey(source) {
+  const subjectId = state.currentSubject ? state.currentSubject.id : "unknown";
+  return `questionRemarks:${subjectId}:${source}`;
+}
+
+function loadQuestionRemarks(source) {
+  try {
+    const items = JSON.parse(localStorage.getItem(questionRemarkKey(source)) || "{}");
+    return items && typeof items === "object" && !Array.isArray(items) ? items : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveQuestionRemarks(source, items) {
+  localStorage.setItem(questionRemarkKey(source), JSON.stringify(items));
+}
+
+function questionSourceForRemark(question = currentQuestion()) {
+  if (state.mode === "exam") {
+    return state.examSource === "past" ? "past" : "mock";
+  }
+  if (state.mode === "practice") {
+    return state.practiceSource === "past" ? "past" : "mock";
+  }
+  if (isPastWrongPracticeMode()) {
+    return "past";
+  }
+  if (state.mode === "wrongPractice") {
+    return "mock";
+  }
+  if (isFavoritePracticeMode()) {
+    return state.favoriteSource === "past" ? "past" : "mock";
+  }
+  return field(question, "source_type") === "past_exam" ? "past" : "mock";
+}
+
+function getQuestionRemark(question) {
+  if (!question) {
+    return "";
+  }
+  const source = questionSourceForRemark(question);
+  const id = field(question, "编号");
+  const saved = loadQuestionRemarks(source)[id];
+  return saved !== undefined ? String(saved) : String(field(question, "备注") || "");
+}
+
+function syncRemarkToStoredRecords(source, id, remark) {
+  const favorites = loadFavorites(source);
+  const favoriteIndex = favorites.findIndex((item) => item.编号 === id);
+  if (favoriteIndex >= 0) {
+    favorites[favoriteIndex].备注 = remark;
+    saveFavorites(source, favorites);
+    if (isFavoritePracticeMode() && state.favoriteSource === source) {
+      const index = state.filteredQuestions.findIndex((item) => item.编号 === id);
+      if (index >= 0) {
+        state.filteredQuestions[index].备注 = remark;
+      }
+    }
+  }
+
+  const wrongItems = source === "past" ? state.pastWrongQuestions : state.wrongQuestions;
+  const wrongIndex = wrongItems.findIndex((item) => item.编号 === id);
+  if (wrongIndex >= 0) {
+    wrongItems[wrongIndex].备注 = remark;
+    if (source === "past") {
+      savePastWrongBook();
+      renderPastWrongBook();
+    } else {
+      saveWrongBook();
+      renderWrongBook();
+    }
+    if (isWrongPracticeMode()) {
+      const index = state.filteredQuestions.findIndex((item) => item.编号 === id);
+      if (index >= 0) {
+        state.filteredQuestions[index].备注 = remark;
+      }
+    }
+  }
+}
+
+function saveQuestionRemark(question, remark) {
+  if (!question) {
+    return;
+  }
+  const source = questionSourceForRemark(question);
+  const id = field(question, "编号");
+  if (!id) {
+    return;
+  }
+  const remarks = loadQuestionRemarks(source);
+  remarks[id] = remark;
+  saveQuestionRemarks(source, remarks);
+  question.备注 = remark;
+  syncRemarkToStoredRecords(source, id, remark);
+}
+
+function renderQuestionRemark(question) {
+  if (!dom.questionNoteInput) {
+    return;
+  }
+  dom.questionNoteInput.value = getQuestionRemark(question);
+}
+
+function handleQuestionRemarkInput() {
+  if (dom.resultPanel.classList.contains("hidden")) {
+    return;
+  }
+  saveQuestionRemark(currentQuestion(), dom.questionNoteInput.value);
+}
+
 function makeFavoriteRecord(question) {
   return {
     编号: field(question, "编号"),
@@ -943,6 +1055,7 @@ function makeFavoriteRecord(question) {
     year: field(question, "year"),
     source_type: field(question, "source_type"),
     source: field(question, "source"),
+    备注: getQuestionRemark(question),
     收藏时间: new Date().toLocaleString(),
   };
 }
@@ -1116,7 +1229,14 @@ function showFavoriteList(source) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "favorite-list-item";
-    button.textContent = `${item.编号}｜${item.题型}｜${item.章节}`;
+    const title = document.createElement("span");
+    title.textContent = `${item.编号}｜${item.题型}｜${item.章节}`;
+    button.appendChild(title);
+    if (item.备注) {
+      const note = document.createElement("small");
+      note.textContent = `备注：${item.备注}`;
+      button.appendChild(note);
+    }
     button.addEventListener("click", () => openFavoriteQuestion(source, index));
     dom.favoriteList.appendChild(button);
   });
@@ -2336,6 +2456,7 @@ function showResult(question, result) {
     field(question, "题目来源") ? `题目来源：${field(question, "题目来源")}` : "",
   ].filter(Boolean).join("\n") || "无");
   dom.selfReviewTip.textContent = result.tip;
+  renderQuestionRemark(question);
 }
 
 function showExamQuestionResult(question, record) {
@@ -3139,6 +3260,7 @@ function makeWrongRecord(question, userAnswer = "") {
     year: field(question, "year"),
     source_type: field(question, "source_type"),
     source: field(question, "source"),
+    备注: getQuestionRemark(question),
     记录时间: new Date().toLocaleString(),
   };
 }
@@ -3318,6 +3440,7 @@ function renderWrongBookList(items, listDom, emptyText, practiceHandler, removeH
     const sourceLines = [
       item.year ? `年份：${item.year}` : "",
       item.source ? `来源：${item.source}` : "",
+      item.备注 ? `备注：${item.备注}` : "",
     ].filter(Boolean);
     answer.textContent = [
       `我的答案：${item.我的答案 || "未记录"}`,
@@ -3563,6 +3686,7 @@ dom.favoriteListBackBtn.addEventListener("click", showFavoriteHome);
 dom.mockFavoriteBtn.addEventListener("click", () => showFavoriteList("mock"));
 dom.pastFavoriteBtn.addEventListener("click", () => showFavoriteList("past"));
 dom.favoriteBtn.addEventListener("click", addCurrentFavorite);
+dom.questionNoteInput.addEventListener("input", handleQuestionRemarkInput);
 dom.favoriteReturnBtn.addEventListener("click", returnFromFocusedPractice);
 dom.examHistoryBtn.addEventListener("click", showExamHistoryHome);
 dom.continueExamBtn.addEventListener("click", restoreExamDraft);
