@@ -2555,6 +2555,13 @@ function refocusQuestionJumpInput(selectText = false) {
   }
 }
 
+function clearPracticeFilters() {
+  dom.chapterFilter.value = "";
+  dom.typeFilter.value = "";
+  dom.questionSourceFilter.value = "";
+  dom.difficultyFilter.value = "";
+}
+
 function jumpToQuestion() {
   saveCurrentPracticeAnswer();
   saveCurrentExamAnswer();
@@ -2565,7 +2572,23 @@ function jumpToQuestion() {
     return;
   }
 
-  const index = findQuestionIndexByInput(input);
+  if (state.mode === "practice") {
+    const fullPool = [...practiceQuestions()];
+    const targetIndex = findQuestionIndexByInput(input, fullPool);
+    if (targetIndex < 0) {
+      dom.loadStatus.textContent = "当前题库中没有找到该题，请重新输入。";
+      refocusQuestionJumpInput(true);
+      return;
+    }
+    clearPracticeFilters();
+    state.filteredQuestions = fullPool;
+    dom.questionJumpInput.blur();
+    updatePracticeLoadStatus();
+    showQuestion(targetIndex);
+    return;
+  }
+
+  const index = findQuestionIndexByInput(input, state.filteredQuestions);
   if (index < 0) {
     dom.loadStatus.textContent = "当前题池中没有找到该题，请重新输入。";
     refocusQuestionJumpInput(true);
@@ -2576,19 +2599,19 @@ function jumpToQuestion() {
   showQuestion(index);
 }
 
-function findQuestionIndexByInput(input) {
+function findQuestionIndexByInput(input, pool = state.filteredQuestions) {
   const normalized = normalizeQuestionId(input);
   if (state.mode === "exam") {
     const examNumber = Number.parseInt(input.replace(/^第\s*/i, "").replace(/\s*题$/i, ""), 10);
     if (Number.isInteger(examNumber) && examNumber > 0) {
-      const examIndex = state.filteredQuestions.findIndex((question, index) => (question["考试编号"] || index + 1) === examNumber);
+      const examIndex = pool.findIndex((question, index) => (question["考试编号"] || index + 1) === examNumber);
       if (examIndex >= 0) {
         return examIndex;
       }
     }
   }
 
-  const exactIndex = state.filteredQuestions.findIndex((question) => normalizeQuestionId(field(question, "编号")) === normalized);
+  const exactIndex = pool.findIndex((question) => normalizeQuestionId(field(question, "编号")) === normalized);
   if (exactIndex >= 0) {
     return exactIndex;
   }
@@ -2599,13 +2622,13 @@ function findQuestionIndexByInput(input) {
   }
 
   const paddedId = `Q${String(number).padStart(4, "0")}`;
-  const idIndex = state.filteredQuestions.findIndex((question) => normalizeQuestionId(field(question, "编号")) === paddedId);
+  const idIndex = pool.findIndex((question) => normalizeQuestionId(field(question, "编号")) === paddedId);
   if (idIndex >= 0) {
     return idIndex;
   }
 
   const ordinalIndex = number - 1;
-  return ordinalIndex >= 0 && ordinalIndex < state.filteredQuestions.length ? ordinalIndex : -1;
+  return ordinalIndex >= 0 && ordinalIndex < pool.length ? ordinalIndex : -1;
 }
 
 function renderExamQuestionNav() {
